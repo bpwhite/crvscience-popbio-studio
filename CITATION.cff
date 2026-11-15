@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite both the software repository and the CRV Science Apps hub."
+type: software
+title: "PopBio-Studio: Population Biology, 3D Adaptive Landscapes, Matrix Models, Bayesian Skyline, and Haplotype Network Simulator"
+version: "1.2.0"
+date-released: "2026-11-15"
+url: "https://crvscience.com/apps"
+repository-code: "https://github.com/bpwhite/crvscience-popbio-studio"
+license: "MIT OR Apache-2.0"
+authors:
+  - family-names: "White"
+    given-names: "Bryan P."
+    affiliation: "CRV Science Labs"
+keywords:
+  - "population biology"
+  - "adaptive landscapes"
+  - "Bayesian skyline"
+  - "haplotype networks"
+  - "Rust"

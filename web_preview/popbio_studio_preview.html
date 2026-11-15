@@ -1,0 +1,4066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PopBio Studio v1.2.0 — Population Biology, Demographic Skyline &amp; Haplotype Workstation</title>
+<style>
+  :root {
+    --bg-app: #0b111b;
+    --bg-panel: #121a28;
+    --bg-card: #182334;
+    --bg-card-hover: #1f2d42;
+    --bg-canvas: #0c1320;
+    --border: #2a3a52;
+    --border-bright: #3d5578;
+    --text-main: #e6eef8;
+    --text-muted: #98abc4;
+    --text-dim: #6c809a;
+    --accent-vert: #388e3c;
+    --accent-inv: #d87a1c;
+    --accent-micro: #0097a7;
+    --accent-theo: #7b52ab;
+    --accent-emp: #c23b5a;
+    --cyan: #38bdf8;
+    --emerald: #34d399;
+    --amber: #facc15;
+    --rose: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg-app);
+    color: var(--text-main);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13.5px;
+    line-height: 1.45;
+    overflow-x: hidden;
+  }
+  button, select, input, textarea {
+    font-family: inherit;
+    font-size: 12.5px;
+    color: var(--text-main);
+  }
+  a {
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  a:hover { text-decoration: underline; }
+
+  /* Persistent Top Bar */
+  .topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 14px;
+    background: #0e1624;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
+  .topbar-left, .topbar-right {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .brand-pill {
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.2px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #1d3557, #2a4365);
+    border: 1px solid #3b5984;
+    color: #f0f7ff;
+  }
+  .btn {
+    background: #1c293d;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    cursor: pointer;
+    transition: background 0.14s, border-color 0.14s;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+  .btn:hover {
+    background: #253650;
+    border-color: var(--border-bright);
+  }
+  .btn-primary {
+    background: #1d4ed8;
+    border-color: #3b82f6;
+    font-weight: 600;
+  }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-accent {
+    background: #0f766e;
+    border-color: #14b8a6;
+    font-weight: 600;
+  }
+  .btn-accent:hover { background: #0d9488; }
+  .btn-sm { padding: 3px 8px; font-size: 11.5px; }
+
+  select.input-ctrl, input.input-ctrl, textarea.input-ctrl {
+    background: #111927;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 8px;
+    outline: none;
+  }
+  select.input-ctrl:focus, input.input-ctrl:focus, textarea.input-ctrl:focus {
+    border-color: var(--cyan);
+  }
+
+  /* Main Container */
+  .container {
+    max-width: 1540px;
+    margin: 0 auto;
+    padding: 12px 14px 36px;
+  }
+
+  /* Hub View */
+  .hub-banner {
+    background: linear-gradient(180deg, #131e30 0%, #101826 100%);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  .hub-banner h1 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .hub-banner p {
+    margin: 0 0 10px;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+  .hub-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .filter-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 8px;
+  }
+  .pill {
+    background: #162133;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 11.5px;
+    cursor: pointer;
+    color: var(--text-muted);
+  }
+  .pill.active {
+    background: #243b5c;
+    border-color: var(--cyan);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  /* Workset Slot Panel */
+  .workset-box {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 11px 14px;
+    margin-bottom: 14px;
+  }
+  .workset-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .group-section {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+  }
+  .group-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 3px;
+  }
+  .group-badge {
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: #fff;
+    letter-spacing: 0.4px;
+  }
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .mod-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: border-color 0.14s, background 0.14s;
+  }
+  .mod-card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-bright);
+  }
+  .mod-code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-weight: 700;
+    font-size: 12px;
+  }
+  .mod-org {
+    font-style: italic;
+    color: #8cc8ff;
+    font-size: 12px;
+    margin: 2px 0 6px;
+  }
+  .mod-desc {
+    color: #c5d3e6;
+    font-size: 12px;
+    margin-bottom: 9px;
+  }
+  .phase-tag {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+  }
+
+  /* Module Workspace Layout */
+  .workspace-grid {
+    display: grid;
+    grid-template-columns: 330px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+  }
+  @media (max-width: 920px) {
+    .workspace-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .sidebar {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .main-stage {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    min-width: 0;
+  }
+  .phase-banner {
+    background: #162234;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+  }
+  .transport-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 6px;
+  }
+  .param-group {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #202e42;
+  }
+  .slider-row {
+    margin-bottom: 7px;
+  }
+  .slider-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+  }
+  .slider-val {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    color: var(--text-main);
+  }
+  input[type="range"] {
+    width: 100%;
+    accent-color: #38bdf8;
+    cursor: pointer;
+  }
+
+  /* Tabs */
+  .tabbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+  }
+  .tab-btn {
+    background: #162133;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 11px;
+    cursor: pointer;
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+  .tab-btn.active {
+    background: #1e3a5f;
+    border-color: var(--cyan);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  /* Canvas Wrappers */
+  .canvas-box {
+    position: relative;
+    width: 100%;
+    background: var(--bg-canvas);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  canvas.viz-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .legend-caption {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* KPI & Data Tables */
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .kpi-card {
+    background: #152032;
+    border: 1px solid #24344d;
+    border-radius: 7px;
+    padding: 7px 10px;
+  }
+  .kpi-label {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .kpi-val {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #f8fafc;
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    margin-top: 8px;
+  }
+  table.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  table.data-table th, table.data-table td {
+    padding: 6px 9px;
+    border-bottom: 1px solid #1f2d42;
+    text-align: left;
+    white-space: nowrap;
+  }
+  table.data-table th {
+    background: #162235;
+    color: #cbd5e1;
+    font-weight: 600;
+  }
+  table.data-table tr:nth-child(even) td {
+    background: rgba(255, 255, 255, 0.018);
+  }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  .dna-strip {
+    overflow-x: auto;
+    background: #0d1422;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 8px 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11.5px;
+    line-height: 1.5;
+    white-space: pre;
+  }
+  .b-A { color: #4ade80; font-weight: 700; }
+  .b-C { color: #60a5fa; font-weight: 700; }
+  .b-G { color: #facc15; font-weight: 700; }
+  .b-T { color: #f87171; font-weight: 700; }
+  .b-dot { color: #475569; }
+
+  pre.eq-block {
+    background: #0d1522;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 10px 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px;
+    overflow-x: auto;
+    color: #e2e8f0;
+  }
+
+  /* Status Bar & Toast & Modal */
+  .statusbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #0d1523;
+    border-top: 1px solid var(--border);
+    padding: 5px 14px;
+    font-size: 12px;
+    color: var(--text-muted);
+    display: flex;
+    justify-content: space-between;
+    z-index: 25;
+  }
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 10, 18, 0.75);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    padding: 16px;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-bright);
+    border-radius: 10px;
+    max-width: 580px;
+    width: 100%;
+    padding: 16px 18px;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- Persistent Top Navigation & Workset Bar -->
+<header class="topbar">
+  <div class="topbar-left">
+    <span class="brand-pill">PopBio Studio v1.2.0</span>
+    <button type="button" class="btn" id="btnFrontMenu" onclick="switchScreen('hub')">⌂ Front Menu (19 Modules)</button>
+    <select id="quickModuleSelect" class="input-ctrl" aria-label="Quick module jump" onchange="launchModule(this.value)"></select>
+  </div>
+  <div class="topbar-right">
+    <button type="button" class="btn btn-sm" onclick="quickSaveSlot()">💾 Quicksave (F5)</button>
+    <button type="button" class="btn btn-sm" onclick="quickLoadSlot()">📂 Quickload (F9)</button>
+    <button type="button" class="btn btn-sm" onclick="exportWorksetJson()">⬇ Export .popworkset</button>
+    <label class="btn btn-sm" for="worksetFileInput">⬆ Load .popworkset</label>
+    <input type="file" id="worksetFileInput" accept=".json" class="hidden" onchange="importWorksetJson(event)">
+    <button type="button" class="btn btn-sm" onclick="toggleHelpModal(true)">? Help &amp; Hotkeys</button>
+  </div>
+</header>
+
+<main class="container">
+  <!-- SCREEN 1: FRONT MENU HUB -->
+  <section id="hubView">
+    <div class="hub-banner">
+      <h1>Population Biology, Theoretical Evolutionary Genetics &amp; Empirical Haplotype / Skyline Workstation</h1>
+      <p>Explore predator-prey cycles, microbial batch/chemostat growth phases, nonlinear stage-structured beetles, theoretical drift/coalescent models, or analyze aligned FASTA sequences with Bayesian Skylines, sliding-window neutrality scans, and draggable Median-Joining haplotype networks.</p>
+      <div class="hub-toolbar">
+        <input type="text" id="hubSearchInput" class="input-ctrl" style="min-width:240px;flex:1;" placeholder="Search organism, model, or statistic (e.g., lynx, E. coli, Tribolium, Tajima, Skyline)..." oninput="renderHubCards()">
+        <button type="button" class="btn btn-sm" onclick="clearHubSearch()">Clear Filter</button>
+      </div>
+      <div class="filter-pills" id="groupFilterPills"></div>
+    </div>
+
+    <!-- Workset ("Save Game") Slot Manager -->
+    <div class="workset-box">
+      <div class="workset-header">
+        <div>
+          <strong>Workset Checkpoints ("Save Game" Manager)</strong>
+          <span style="color:var(--text-muted);font-size:12px;margin-left:6px;">Snapshots all 19 modules, custom parameters, RNG state &amp; loaded FASTA alignments</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+          <input type="text" id="slotNameInput" class="input-ctrl" value="Lab_Checkpoint_1" style="width:155px;" aria-label="Checkpoint slot name">
+          <button type="button" class="btn btn-accent btn-sm" onclick="saveNamedSlot()">Save Checkpoint Slot</button>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
+        <input type="text" id="worksetTitleInput" class="input-ctrl" style="flex:1;min-width:200px;" placeholder="Workset Title" oninput="syncWorksetMeta()">
+        <input type="text" id="worksetNotesInput" class="input-ctrl" style="flex:2;min-width:240px;" placeholder="Lab / Study Notes" oninput="syncWorksetMeta()">
+      </div>
+      <div id="savedSlotsContainer"></div>
+    </div>
+
+    <!-- 5 Grouped Module Grids -->
+    <div id="hubGroupsContainer"></div>
+  </section>
+
+  <!-- SCREEN 2: ACTIVE MODULE WORKSPACE -->
+  <section id="workspaceView" class="hidden">
+    <div class="workspace-grid">
+      <!-- Left Parameter & Transport Sidebar -->
+      <aside class="sidebar">
+        <div class="phase-banner">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:3px;">Active Biological Growth / Regime Phase</div>
+          <span id="activePhaseBadge" class="phase-tag">Exponential / Log Growth</span>
+        </div>
+
+        <!-- Dynamical / Theoretical Transport Controls -->
+        <div id="simTransportBox">
+          <div style="font-weight:600;margin-bottom:5px;">Time-Step &amp; Growth Phase Transport</div>
+          <div class="transport-row">
+            <button type="button" class="btn btn-primary btn-sm" id="btnPlayPause" onclick="togglePlay()">▶ Play (Space)</button>
+            <button type="button" class="btn btn-sm" onclick="stepActive(1)">+1 Step</button>
+            <button type="button" class="btn btn-sm" onclick="stepActive(10)">+10 Steps</button>
+          </div>
+          <div class="transport-row">
+            <button type="button" class="btn btn-accent btn-sm" onclick="advanceNextGrowthPhase()" title="Advance automatically until the population enters a new biological growth phase">⏭ Next Growth Phase</button>
+            <button type="button" class="btn btn-sm" onclick="perturbActive()">⚡ Perturb</button>
+            <button type="button" class="btn btn-sm" onclick="resetActive()">↺ Reset</button>
+          </div>
+          <div class="slider-row" style="margin-top:6px;">
+            <div class="slider-label"><span>Simulation Speed (steps/frame)</span><span class="slider-val" id="speedValLbl">1x</span></div>
+            <input type="range" id="speedSlider" min="1" max="15" step="1" value="1" oninput="updateSpeed(this.value)">
+          </div>
+        </div>
+
+        <!-- Dynamic Sliders / Empirical Controls Container -->
+        <div id="moduleControlsContainer" class="param-group"></div>
+      </aside>
+
+      <!-- Right Multi-Tab Visualization & Graph Stage -->
+      <div class="main-stage">
+        <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;">
+          <div>
+            <span id="wsModCode" class="mod-code" style="font-size:15px;color:var(--cyan);">[V1]</span>
+            <strong id="wsModTitle" style="font-size:16.5px;margin-left:5px;">Snowshoe Hare &amp; Canada Lynx Boreal Cycle</strong>
+            <span id="wsModOrg" class="mod-org" style="margin-left:8px;">(Lepus americanus &amp; Lynx canadensis)</span>
+          </div>
+          <a id="wsCitationLink" href="https://pubmed.ncbi.nlm.nih.gov/9144205/" target="_blank" rel="noopener" style="font-size:12px;">Primary Literature ↗</a>
+        </div>
+
+        <!-- Dynamical KPI Strip -->
+        <div id="simKpiStrip" class="kpi-strip"></div>
+
+        <!-- Dynamical Tabs (V1..T4) -->
+        <div id="simTabBar" class="tabbar">
+          <button type="button" class="tab-btn active" data-simtab="spatial" onclick="setSimTab('spatial')">1. Spatial Movement &amp; Distribution</button>
+          <button type="button" class="tab-btn" data-simtab="timeseries" onclick="setSimTab('timeseries')">2. Population Graphs &amp; Growth Phases</button>
+          <button type="button" class="tab-btn" data-simtab="phase" onclick="setSimTab('phase')">3. Phase Portrait / Bifurcation / SFS</button>
+          <button type="button" class="tab-btn" data-simtab="equations" onclick="setSimTab('equations')">4. Governing Equations &amp; CSV Export</button>
+        </div>
+
+        <!-- Empirical Tabs (E1..E4) -->
+        <div id="empTabBar" class="tabbar hidden">
+          <button type="button" class="tab-btn active" data-emptab="E1" onclick="launchModule('E1')">1. Global PopGen, Neutrality &amp; F_ST</button>
+          <button type="button" class="tab-btn" data-emptab="E2" onclick="launchModule('E2')">2. Haplotype Network Studio (MJ / MSN / TCS)</button>
+          <button type="button" class="tab-btn" data-emptab="E3" onclick="launchModule('E3')">3. Bayesian Skyline &amp; Expansion</button>
+          <button type="button" class="tab-btn" data-emptab="E4" onclick="launchModule('E4')">4. Sliding-Window Neutrality &amp; Sweep Scan</button>
+        </div>
+
+        <!-- Dynamical Panels -->
+        <div id="simSpatialPanel">
+          <div class="canvas-box" style="height:440px;">
+            <canvas id="spatialCanvas" class="viz-canvas"></canvas>
+          </div>
+          <div id="spatialLegend" class="legend-caption"></div>
+        </div>
+
+        <div id="simTimeSeriesPanel" class="hidden">
+          <div style="font-weight:600;font-size:12.5px;margin-bottom:4px;">Population Trajectories &amp; Phase-Shift Markers (hover plot for exact readout)</div>
+          <div class="canvas-box" style="height:265px;margin-bottom:10px;">
+            <canvas id="tsMainCanvas" class="viz-canvas"></canvas>
+          </div>
+          <div style="font-weight:600;font-size:12.5px;margin-bottom:4px;">Per-Capita Growth Rate (1/N dN/dt) vs. Abundance N (Density Dependence)</div>
+          <div class="canvas-box" style="height:175px;">
+            <canvas id="tsRateCanvas" class="viz-canvas"></canvas>
+          </div>
+        </div>
+
+        <div id="simPhasePanel" class="hidden">
+          <div id="diagTitle" style="font-weight:600;font-size:12.5px;margin-bottom:4px;">2D State-Space Phase Portrait &amp; Nullclines</div>
+          <div class="canvas-box" style="height:430px;">
+            <canvas id="diagCanvas" class="viz-canvas"></canvas>
+          </div>
+        </div>
+
+        <div id="simEquationsPanel" class="hidden">
+          <div style="font-weight:600;margin-bottom:5px;">Governing Mathematical Formulation</div>
+          <pre id="eqPlainBox" class="eq-block"></pre>
+          <div style="font-weight:600;margin:10px 0 4px;">Empirical Model System &amp; Literature Provenance</div>
+          <p id="eqSummaryText" style="color:var(--text-muted);margin:0 0 8px;"></p>
+          <p style="margin:0 0 14px;"><a id="eqPaperAnchor" href="https://pubmed.ncbi.nlm.nih.gov/9144205/" target="_blank" rel="noopener">View Primary Reference ↗</a></p>
+          <button type="button" class="btn btn-accent" onclick="downloadModuleCsv()">⬇ Download Time-Series CSV</button>
+        </div>
+
+        <!-- Empirical Panels (E1..E4) -->
+        <div id="empE1Panel" class="hidden">
+          <details style="margin-bottom:8px;">
+            <summary style="cursor:pointer;font-weight:600;color:var(--cyan);">Editable Multi-FASTA / PHYLIP / NEXUS Alignment Source</summary>
+            <textarea id="fastaEditor" class="input-ctrl mono" rows="7" style="width:100%;margin-top:6px;" oninput="onFastaEdited()"></textarea>
+          </details>
+          <div style="font-weight:600;font-size:12.5px;margin-bottom:4px;">Aligned Nucleotide Matrix &amp; Segregating Polymorphism Strip (dots match reference sequence 1)</div>
+          <div id="dnaStripBox" class="dna-strip"></div>
+          <div id="e1KpiGrid" class="kpi-strip" style="margin-top:10px;"></div>
+          <div style="font-weight:600;font-size:12.5px;margin-top:10px;">Multi-Population Structure: Hudson (1992) F_ST, D_XY, D_a &amp; Effective Migrants Nm</div>
+          <div id="e1FstTable" class="table-scroll"></div>
+          <div style="font-weight:600;font-size:12.5px;margin-top:10px;">Linkage Disequilibrium (r² &amp; |D'| across Parsimony-Informative Sites)</div>
+          <div id="e1LdTable" class="table-scroll"></div>
+        </div>
+
+        <div id="empE2Panel" class="hidden">
+          <div id="e2SummaryBar" style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;margin-bottom:6px;font-size:12.5px;"></div>
+          <div id="e2LegendRow" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:6px;font-size:12px;"></div>
+          <div class="canvas-box" style="height:415px;">
+            <canvas id="hapNetCanvas" class="viz-canvas"></canvas>
+          </div>
+          <div class="legend-caption">Drag any haplotype node or red median vector (`mv`) to customize network geometry. Yellow perpendicular ticks denote mutational steps.</div>
+          <div id="e2HapTable" class="table-scroll"></div>
+        </div>
+
+        <div id="empE3Panel" class="hidden">
+          <div id="e3HeaderStats" class="kpi-strip"></div>
+          <div style="font-weight:600;font-size:12.5px;margin-bottom:4px;">Bayesian Skyline Plot: Effective Population Size N_e(t) Backward from Present (95% Credible Ribbon + Generalized Skyline)</div>
+          <div class="canvas-box" style="height:230px;margin-bottom:10px;">
+            <canvas id="skylineCanvas" class="viz-canvas"></canvas>
+          </div>
+          <div style="font-weight:600;font-size:12.5px;margin-bottom:4px;">Rogers &amp; Harpending (1992) Coalescent Sudden Expansion Wave Fit vs. Pairwise Mismatch Distribution</div>
+          <div class="canvas-box" style="height:195px;">
+            <canvas id="expansionWaveCanvas" class="viz-canvas"></canvas>
+          </div>
+          <div id="e3IntervalsTable" class="table-scroll"></div>
+        </div>
+
+        <div id="empE4Panel" class="hidden">
+          <div id="e4SummaryLine" style="font-weight:600;margin-bottom:6px;"></div>
+          <div style="font-weight:600;font-size:12px;margin-bottom:3px;">Track 1 — Nucleotide Diversity pi(w), Watterson's theta_W(w) &amp; Divergence D_XY(w)</div>
+          <div class="canvas-box" style="height:150px;margin-bottom:8px;">
+            <canvas id="swDivCanvas" class="viz-canvas"></canvas>
+          </div>
+          <div style="font-weight:600;font-size:12px;margin-bottom:3px;">Track 2 — Neutrality Scan: Tajima's D(w) &amp; Fu &amp; Li's D*(w) (horizontal lines at 0 and ±1.96)</div>
+          <div class="canvas-box" style="height:160px;margin-bottom:8px;">
+            <canvas id="swNeutCanvas" class="viz-canvas"></canvas>
+          </div>
+          <div style="font-weight:600;font-size:12px;margin-bottom:3px;">Track 3 — Multi-Deme Differentiation Profile: Mean Pairwise Hudson F_ST(w)</div>
+          <div class="canvas-box" style="height:135px;margin-bottom:8px;">
+            <canvas id="swFstCanvas" class="viz-canvas"></canvas>
+          </div>
+          <div id="e4WindowsTable" class="table-scroll"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Bottom Status Bar -->
+<footer class="statusbar">
+  <span id="statusLeft">[PopBio Studio v1.2.0] Ready — Select any module or load a FASTA alignment.</span>
+  <span id="statusRight">Shortcuts: Space = Play/Pause | H = Front Menu | F5 = Quicksave | F9 = Quickload</span>
+</footer>
+
+<!-- Help & Citations Modal -->
+<div class="modal-backdrop" id="helpModal" onclick="if(event.target===this)toggleHelpModal(false)">
+  <div class="modal-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <strong style="font-size:15.5px;">PopBio Studio v1.2.0 — Controls, Worksets &amp; FASTA Format</strong>
+      <button type="button" class="btn btn-sm" onclick="toggleHelpModal(false)">✕ Close</button>
+    </div>
+    <p style="color:var(--text-muted);margin:0 0 8px;">This interactive Canvas workstation mirrors the native safe-Rust <code>popbio-studio</code> v1.1.0 architecture across all 17 organismal, theoretical, and empirical sequence modules.</p>
+    <ul style="padding-left:18px;margin:0 0 10px;color:#d0dceb;">
+      <li><strong>Space</strong>: Play / Pause the active dynamical or genetic simulator.</li>
+      <li><strong>Next Growth Phase</strong>: Advances time automatically until the biological phase transitions (e.g., <em>Lag → Exponential → Diauxic → Stationary → Senescence</em> in <em>E. coli</em>).</li>
+      <li><strong>F5 / F9 &amp; .popworkset</strong>: Save or restore complete multi-module checkpoints including RNG seeds, parameters, and custom FASTA alignments.</li>
+      <li><strong>Empirical Deme Tags</strong>: Format FASTA headers as <code>&gt;Sample01|IsleRoyale</code> or <code>&gt;Sample01 [Pop=North]</code> to color Haplotype Network pie slices and compute Hudson <code>F_ST</code> / <code>D_XY</code>.</li>
+    </ul>
+    <div style="text-align:right;">
+      <button type="button" class="btn btn-primary btn-sm" onclick="toggleHelpModal(false)">Got It</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* =========================================================================
+   1. DETERMINISTIC XorShift32 PRNG (Serializable for Workset Checkpoints)
+   ========================================================================= */
+class SimRng {
+  constructor(seed) {
+    this.state = (seed >>> 0) || 2463534242;
+  }
+  nextU32() {
+    let x = this.state >>> 0;
+    x ^= (x << 13) >>> 0;
+    x ^= (x >>> 17) >>> 0;
+    x ^= (x << 5) >>> 0;
+    this.state = (x >>> 0) || 1;
+    return this.state;
+  }
+  nextF64() {
+    return (this.nextU32() >>> 0) / 4294967296.0;
+  }
+  range(lo, hi) {
+    return lo + (hi - lo) * this.nextF64();
+  }
+  genIndex(n) {
+    return n <= 1 ? 0 : (this.nextU32() % n);
+  }
+  normal() {
+    const u1 = Math.max(1e-12, this.nextF64());
+    const u2 = this.nextF64();
+    return Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+  }
+  binomial(n, p) {
+    const pc = Math.max(0.0, Math.min(1.0, p));
+    if (n <= 0 || pc <= 0.0) return 0;
+    if (pc >= 1.0) return n;
+    if (n <= 60) {
+      let k = 0;
+      for (let i = 0; i < n; i++) if (this.nextF64() < pc) k++;
+      return k;
+    }
+    const mean = n * pc;
+    const sd = Math.sqrt(mean * (1.0 - pc));
+    return Math.max(0, Math.min(n, Math.round(mean + sd * this.normal())));
+  }
+  exponential(rate) {
+    if (rate <= 0) return 0;
+    return -Math.log(Math.max(1e-12, this.nextF64())) / rate;
+  }
+}
+
+/* =========================================================================
+   2. MODULE GROUPS, METADATA & GROWTH PHASE DEFINITIONS (17 MODULES)
+   ========================================================================= */
+const GROUPS = [
+  { id: "Vertebrates", badge: "VERTEBRATES", title: "I. Vertebrate Predator-Prey & Herbivore Dynamics", color: "#388e3c",
+    subtitle: "Boreal hare-lynx limit cycles, Isle Royale wolf-moose pack dynamics, and St. Kilda Soay sheep crashes" },
+  { id: "Invertebrates", badge: "INVERTEBRATES", title: "II. Invertebrate Stage-Structure & Spatial Dynamics", color: "#d87a1c",
+    subtitle: "Tribolium LPA cannibalism bifurcations, Huffaker 6x4 citrus-mite trays, and host-parasitoid refuges" },
+  { id: "Microbiology", badge: "MICROBIOLOGY", title: "III. Microbiology Growth Phases, Chemostat & Phage", color: "#0097a7",
+    subtitle: "Escherichia coli 4-phase batch & Monod chemostat cultures, Gause Paramecium-Didinium, and T4 phage plaques" },
+  { id: "Theoretical", badge: "THEO POPBIO", title: "IV. Theoretical Ecology & Evolutionary Genetics", color: "#7b52ab",
+    subtitle: "Levins metapopulations, May chaos, Wright-Fisher drift, Kingman coalescents, Sewall Wright 3D fitness landscapes, and Leslie/Lefkovitch matrices" },
+  { id: "EmpiricalPopGen", badge: "EMPIRICAL POPGEN", title: "V. Empirical Sequence Alignments, Demographic Skylines & Haplotype Networks", color: "#c23b5a",
+    subtitle: "Multi-FASTA polymorphism, Bandelt Median-Joining networks, MCMC Bayesian Skyline / Rogers-Harpending expansion, and sliding-window scans" }
+];
+
+const PHASES = {
+  Lag:       { label: "Lag Phase (Metabolic Acclimation)", color: "#64748b" },
+  Exp:       { label: "Exponential / Log Growth Phase", color: "#2ea043" },
+  Diauxic:   { label: "Diauxic Metabolic Shift", color: "#009688" },
+  Decel:     { label: "Density-Dependent Deceleration", color: "#d29922" },
+  Stat:      { label: "Stationary / Carrying Capacity", color: "#388bfd" },
+  Overshoot: { label: "Predator / Consumer Peak & Suppression", color: "#db6d28" },
+  Crash:     { label: "Population Crash / Bottleneck", color: "#da3633" },
+  Death:     { label: "Senescence / Death Phase", color: "#8c2d41" },
+  Cycle:     { label: "Sustained Limit-Cycle Oscillation", color: "#8957e5" },
+  Chaos:     { label: "Aperiodic / Chaotic Regime", color: "#d13b8a" },
+  Drift:     { label: "Segregating Polymorphism (Drift / Selection)", color: "#3f88c5" },
+  Fixed:     { label: "Allelic Fixation / Loss Boundary", color: "#6e7681" },
+  Empirical: { label: "Empirical Alignment & Skyline Ready", color: "#c23b5a" }
+};
+
+const MODULES = window.MODULES = {
+  V1: { code: "V1", group: "Vertebrates", title: "Snowshoe Hare & Canada Lynx Boreal Cycle",
+    organisms: "Lepus americanus & Lynx canadensis", unit: "Years",
+    summary: "Rosenzweig-MacArthur predator-prey ODEs with Holling Type I/II/III functional response, nullclines, and boreal pursuit/evasion arena.",
+    equations: "dH/dt = r_H * H * (1 - H / K) - f(H) * L\ndL/dt = e * f(H) * L - m_L * L\nHolling Type II: f(H) = (a * H) / (1 + a * T_h * H)",
+    citeLabel: "Stenseth et al. (1997) PNAS 94:5147-5152", citeUrl: "https://pubmed.ncbi.nlm.nih.gov/9144205/" },
+  V2: { code: "V2", group: "Vertebrates", title: "Isle Royale Moose & Gray Wolf Pack Dynamics",
+    organisms: "Alces alces & Canis lupus", unit: "Years",
+    summary: "Ratio-dependent pack predation, balsam fir browse feedback, winter NAO severity, pack Allee threshold, and Lake Superior ice-bridge rescue.",
+    equations: "dM/dt = r_M * (1 - 0.38 * W_sev) * M * (1 - M / K_fir) - (a * M * W) / (W + a * T_h * M)\ndW/dt = e_W * Kills * (W / (W + A_allee)) - m_W * W + I_rescue",
+    citeLabel: "Vucetich & Peterson — Isle Royale Wolf-Moose Project", citeUrl: "https://www.isleroyalewolf.org/population-dynamics" },
+  V3: { code: "V3", group: "Vertebrates", title: "St. Kilda Soay Sheep Overcompensatory Crashes",
+    organisms: "Ovis aries (Hirta, St. Kilda)", unit: "Years",
+    summary: "Discrete Maynard Smith-Slatkin overcompensatory herbivore regulation (beta > 2 triggers crashes) coupled with stochastic North Atlantic winter gales.",
+    equations: "N_{t+1} = (N_t * lambda * exp(-w_storm)) / (1 + (N_t / K)^beta)",
+    citeLabel: "Coulson, Clutton-Brock et al. (2001) Science 292:1528-1531", citeUrl: "https://pubmed.ncbi.nlm.nih.gov/11375487/" },
+  I1: { code: "I1", group: "Invertebrates", title: "Flour Beetle Stage-Structured LPA & Park Competition",
+    organisms: "Tribolium castaneum & Tribolium confusum", unit: "2-Week Censuses",
+    summary: "Nonlinear Larvae-Pupae-Adults (LPA) egg/pupa cannibalism bifurcations with 3-horizon flour column and Park two-species competition toggle.",
+    equations: "L_{t+1} = b * A_t * exp(-c_el * L_t - c_ea * A_t)\nP_{t+1} = (1 - mu_l) * L_t\nA_{t+1} = P_t * exp(-c_pa * A_t) + (1 - mu_a) * A_t",
+    citeLabel: "Costantino et al. (1997) Science 275:389-391", citeUrl: "https://pmc.ncbi.nlm.nih.gov/articles/PMC314198/" },
+  I2: { code: "I2", group: "Invertebrates", title: "Huffaker Spatial Citrus-Tray Mite Metapopulation",
+    organisms: "Eotetranychus sexmaculatus & Typhlodromus occidentalis", unit: "Weeks",
+    summary: "24-patch (6x4) orange tray lattice demonstrating how Vaseline dispersal barriers sustain asynchronous spatial predator-prey waves.",
+    equations: "dN_i/dt = r*N_i*(1 - N_i/K) - f(N_i)*P_i + D_N*(1 - 0.55*B)*Lap(N)_i\ndP_i/dt = e*f(N_i)*P_i - m*P_i + D_P*(1 - 0.92*B)*Lap(P)_i",
+    citeLabel: "Muhlbauer et al. (2020) Ecol. Evol. (PMC7713957)", citeUrl: "https://pmc.ncbi.nlm.nih.gov/articles/PMC7713957/" },
+  I3: { code: "I3", group: "Invertebrates", title: "Pea Aphid & Parasitoid Wasp Host-Refuge Dynamics",
+    organisms: "Acyrthosiphon pisum & Aphidius ervi", unit: "Generations",
+    summary: "Nicholson-Bailey host-parasitoid interaction stabilized by Negative-Binomial spatial clumping (k < 1) and physical plant-stem refuges.",
+    equations: "Escape = refuge + (1 - refuge) * (1 + a * W_t / k)^(-k)\nH_{t+1} = lambda * H_t * exp(-H_t/K * ln(lambda)) * Escape\nW_{t+1} = c * H_t * (1 - Escape)",
+    citeLabel: "Holling (1959) Can. Entomol. 91:385-398", citeUrl: "https://www.cambridge.org/core/journals/canadian-entomologist/article/some-characteristics-of-simple-types-of-predation-and-parasitism1/9E1E7D2CCC314766A424680444F4EA9F" },
+  M1: { code: "M1", group: "Microbiology", title: "Escherichia coli Growth Phases & Monod Chemostat",
+    organisms: "Escherichia coli K-12", unit: "Hours",
+    summary: "Explicit Lag enzyme acclimation, Exponential (Log) binary fission, Glucose-Lactose Diauxic Shift, Stationary waste inhibition, and Death phase.",
+    equations: "dA_enz/dt = k_lag * (1 - A_enz)\nmu = A_enz * [mu1*S1/(Ks1+S1) + A_lac*mu2*S2/(Ks2+S2)*(Ki/(Ki+S1))] / (1 + 0.45*I_tox)\ndX/dt = (mu - k_death - D) * X",
+    citeLabel: "Monod (1949) Annu. Rev. Microbiol. 3:371-394", citeUrl: "https://www.annualreviews.org/content/journals/10.1146/annurev.mi.03.100149.002103" },
+  M2: { code: "M2", group: "Microbiology", title: "Gause Microcosms: Paramecium & Didinium",
+    organisms: "Paramecium caudatum, P. aurelia & Didinium nasutum", unit: "Days",
+    summary: "Toggle between Gause's competitive exclusion (P. aurelia vs P. caudatum) and Didinium predation with oat-sediment refuge and 3-day immigration.",
+    equations: "Competition: dN1/dt = r1*N1*(1 - (N1 + alpha12*N2)/K1)\nPredation:   dN/dt = r*N*(1 - N/K) - a*(1 - refuge)*N*D / (1 + a*Th*(1 - refuge)*N)",
+    citeLabel: "Gause (1934) / gauseR Vignette", citeUrl: "https://espejito.fder.edu.uy/cran/web/packages/gauseR/vignettes/gauseR_examples.html" },
+  M3: { code: "M3", group: "Microbiology", title: "T4 Bacteriophage & E. coli Lytic Plaque Wave",
+    organisms: "Escherichia virus T4 & Escherichia coli B", unit: "Hours",
+    summary: "Campbell phage-bacteria dynamics tracking susceptible, eclipse-infected, receptor-resistant cells, free virions, and a 24x24 radial plaque lawn.",
+    equations: "dS/dt = mu(R)*S - phi*S*V - u_mut*S\ndI/dt = phi*S*V - k_lysis*I\ndV/dt = beta*k_lysis*I - phi*S*V - d_V*V",
+    citeLabel: "Campbell (1961) Evolution 15:153-165", citeUrl: "https://www.scilit.com/publications/3e46b60b6e9b6b089247f59bdcbe9dff" },
+  T1: { code: "T1", group: "Theoretical", title: "Levins Metapopulation & Habitat Destruction",
+    organisms: "64-Patch Spatial Landscape Network", unit: "Seasons",
+    summary: "Couples deterministic Levins occupancy ODE with a stochastic 64-patch network around the critical habitat destruction threshold h_crit = 1 - e/c.",
+    equations: "dp/dt = c * p * (1 - h - p) - e * p\nEquilibrium p* = (1 - h) - (e / c)",
+    citeLabel: "Levins (1969) Bull. Entomol. Soc. Am. 15:237-240", citeUrl: "https://academic.oup.com/ae/article-abstract/15/3/237/255899" },
+  T2: { code: "T2", group: "Theoretical", title: "May Discrete Logistic & Ricker Chaos Lab",
+    organisms: "Discrete Non-Overlapping Generations", unit: "Generations",
+    summary: "Explore monotonic approach, 2^k period-doubling cascades, chaotic attractors, live return-map cobwebs, and Lyapunov exponents.",
+    equations: "May Logistic: N_{t+1} = N_t * [1 + r * (1 - N_t / K)]\nRicker Map:   N_{t+1} = N_t * exp(r * (1 - N_t / K))",
+    citeLabel: "May (1976) Nature 261:459-467", citeUrl: "https://pubmed.ncbi.nlm.nih.gov/934280/" },
+  T3: { code: "T3", group: "Theoretical", title: "Wright-Fisher Drift, Selection & Island F_ST",
+    organisms: "Multi-Deme Diploid Mendelian Populations (2N_e)", unit: "Generations",
+    summary: "Simultaneous diploid demes evolving under genetic drift, viability selection (w_AA, w_Aa, w_aa), mutation, and island migration on a De Finetti triangle.",
+    equations: "p_sel = (p^2 * w_AA + p*q * w_Aa) / w_bar\nk_{t+1} ~ Binomial(2 * N_e, (1 - m)*p_mut + m*p_bar)\nF_ST = (H_T - H_S) / H_T",
+    citeLabel: "Wright (1931) Genetics 16:97-159", citeUrl: "https://pmc.ncbi.nlm.nih.gov/articles/PMC1201091/" },
+  T4: { code: "T4", group: "Theoretical", title: "Kingman Coalescent Genealogy & Neutral SFS",
+    organisms: "Neutral Haploid Sample (n = 4..32 chromosomes)", unit: "Replicates",
+    summary: "Simulates backward-in-time coalescent trees, waiting times E[T_k] = 4*N_e/(k*(k-1)), branch mutations, and simulated vs. neutral theta/i SFS.",
+    equations: "Rate lambda_k = k * (k - 1) / (4 * N_e)\nE[T_MRCA] = 4 * N_e * (1 - 1 / n);  E[xi_i] = theta / i",
+    citeLabel: "Kingman (1982) Stoch. Process. Appl. 13:235-248", citeUrl: "https://ideas.repec.org/a/eee/spapps/v13y1982i3p235-248.html" },
+  T5: { code: "T5", group: "Theoretical", title: "Sewall Wright 3D Adaptive Fitness Landscape",
+    organisms: "Multi-Deme Shifting Balance Metapopulation", unit: "Generations",
+    summary: "Interactive 3D mouse-rotatable multi-peak fitness surface W_bar(x, y) modeling Phase I drift across epistatic valleys, Phase II hill-climbing, and Phase III dispersion.",
+    equations: "dz_i = (s / W_bar) * grad(W_bar) + m * (z_weighted - z_i) + N(0, 1 / sqrt(2 * N_e))\nW_bar(x, y) = 0.5 + h_1 * exp(-d_1^2 / 0.036) + h_2 * exp(-d_2^2 / 0.042) - v_valley",
+    citeLabel: "Wright (1932) Proc. 6th Int. Congr. Genet. 1:356-366", citeUrl: "https://www.cambridge.org/core/journals/philosophy-of-science/article/heuristic-role-of-sewall-wrights-1932-adaptive-landscape-diagram/4FB15417FA20A1FE32301B147AF28CB9" },
+  T6: { code: "T6", group: "Theoretical", title: "Leslie & Lefkovitch Age/Stage Matrix Projection",
+    organisms: "Caretta caretta (7-Stage), Songbird (4-Age) & Perennial Herb (5-Stage)", unit: "Years",
+    summary: "Projects age- and stage-structured matrices n_{t+1} = A * n_t solving dominant eigenvalue lambda_1, stable distribution w, reproductive value v, and elasticity E_ij.",
+    equations: "n_{t+1} = A * n_t;   A * w = lambda_1 * w;   A^T * v = lambda_1 * v\nSensitivity S_ij = (v_i * w_j) / <v, w>;   Elasticity E_ij = (a_ij / lambda_1) * S_ij",
+    citeLabel: "Leslie (1945) Biometrika 33:183-212; Crouse et al. (1987) Ecology", citeUrl: "https://pubmed.ncbi.nlm.nih.gov/21006835/" },
+  E1: { code: "E1", group: "EmpiricalPopGen", title: "Sequence Alignment Polymorphism, Neutrality & F_ST",
+    organisms: "Multi-FASTA / PHYLIP / NEXUS DNA Alignments", unit: "bp",
+    summary: "Computes S, Hd, pi, Watterson's theta_W, Tajima's D (normal & Beta p-values), Fu & Li's D*/F*, mismatch raggedness, LD (r², |D'|), and Hudson F_ST.",
+    equations: "Tajima's D = (k_hat - S / a_1) / sqrt(e_1*S + e_2*S*(S - 1))",
+    citeLabel: "Tajima (1989) Genetics 123:585-595; Hudson et al. (1992)", citeUrl: "https://pubmed.ncbi.nlm.nih.gov/2513255/" },
+  E2: { code: "E2", group: "EmpiricalPopGen", title: "Bandelt Median-Joining & TCS Haplotype Network Studio",
+    organisms: "Intraspecific Mitochondrial / Nuclear Haplotypes", unit: "Steps",
+    summary: "Builds Bandelt Median-Joining (MJ), Kruskal MSN, and TCS 95% Parsimony haplotype networks with inferred median vectors, deme pies, and SVG/GEXF export.",
+    equations: "MJ Network: d <= d_min + epsilon links -> consensus triplet median vectors -> MST pruning",
+    citeLabel: "Bandelt, Forster & Rohl (1999) Mol. Biol. Evol. 16:37-48", citeUrl: "https://pubmed.ncbi.nlm.nih.gov/10331250/" },
+  E3: { code: "E3", group: "EmpiricalPopGen", title: "Bayesian Skyline & Coalescent Demographic Expansion",
+    organisms: "Ultrametric Coalescent Genealogies & Mismatch Waves", unit: "Years / Subs",
+    summary: "Metropolis-Hastings MCMC Bayesian Skyline N_e(t) with 95% credible ribbon, AICc Generalized Skyline, and Rogers-Harpending sudden expansion fit.",
+    equations: "log L(g | Theta, A) = sum_i [ ln(k_i*(k_i-1)/(2*theta)) - k_i*(k_i-1)*du_i/(2*theta) ]",
+    citeLabel: "Drummond et al. (2005) MBE 22:1185-1192; Rogers & Harpending (1992)", citeUrl: "https://pubmed.ncbi.nlm.nih.gov/15703244/" },
+  E4: { code: "E4", group: "EmpiricalPopGen", title: "Sliding-Window Neutrality, Sweep & Divergence Scan",
+    organisms: "Chromosomal / Multi-Gene Aligned Loci", unit: "bp",
+    summary: "Scans configurable bp windows and steps across FASTA alignments to localize selective sweeps (D < 0), balancing selection peaks (D > 0), and F_ST islands.",
+    equations: "Window [x, x+W): pi(w), theta_W(w), Tajima's D(w), Fu & Li's D*(w), Hudson F_ST(w)",
+    citeLabel: "Librado & Rozas (2009) Bioinformatics 25:1451-1452", citeUrl: "https://academic.oup.com/bioinformatics/article/25/11/1451/332507" }
+};
+
+/* =========================================================================
+   3. BUILT-IN BENCHMARK ALIGNMENTS (4 EMPIRICAL DATASETS)
+   ========================================================================= */
+function buildSweepBalancing180() {
+  const b1 = "ATGCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAG";
+  const b2 = "CCGTAACCTAGGCTTAGCCATGACCGTTAGGCCTAACGTTATGCCGTAACCTGATCGGAT";
+  const b3 = "GGAACCTTATATTTTATTTTTGGAGCATGAGCAGGAATAGTAGGAACTTCTTTAAGACTT";
+  const lines = [];
+  for (let i = 0; i < 12; i++) {
+    const deme = i < 6 ? "ValleyNorth" : "RidgeSouth";
+    const r1 = b1.split("");
+    if (i < 10) {
+      const pos = 3 + i * 5;
+      r1[pos] = r1[pos] !== "C" ? "C" : "A";
+    }
+    const r2 = b2.split("");
+    if (i === 2 || i === 3 || i === 4) r2[14] = "T";
+    if (i === 7 || i === 8) r2[38] = "A";
+    const r3 = b3.split("");
+    if (i >= 6) {
+      [4, 10, 16, 22, 28, 34, 40, 46, 52, 57].forEach(p => {
+        r3[p] = r3[p] !== "C" ? "C" : "G";
+      });
+    }
+    lines.push(">Sample" + String(i + 1).padStart(2, "0") + "|" + deme + "\n" + r1.join("") + r2.join("") + r3.join(""));
+  }
+  return lines.join("\n");
+}
+
+const ALIGNMENT_PRESETS = [
+  {
+    name: "Canis lupus mtDNA Control Region (Isle Royale vs. Mainland)",
+    fasta: [
+      ">IR01|IsleRoyale\nATGCCGTAACCTGATCGGATCCGTAACCTAGGCTTAGCCATGACCGTTAGGCCTAACGTT",
+      ">IR02|IsleRoyale\nATGCCGTAACCTGATCGGATCCGTAACCTAGGCTTAGCCATGACCGTTAGGCCTAACGTT",
+      ">IR03|IsleRoyale\nATGCCGTAACCTGATCGGATCCGTAACCTAGGCTTAGCCATGACCGTTAGGCCTAACGTT",
+      ">IR04|IsleRoyale\nATGCCGTAACCTGATCGGATCCGTAACCTAGGCTTAGCCATGACCGCTAGGCCTAACGTT",
+      ">IR05|IsleRoyale\nATGCCGTAACCTGATCGGATCCGTAACCTAGGCTTAGCCATGACCGCTAGGCCTAACGTT",
+      ">MN01|MainlandMN\nATGCCGTAACCTGATCGGATTCGTAACCTAGGCTTAGCCATGACCGCTAGGCCTAACGTT",
+      ">MN02|MainlandMN\nATGCCGTAACCTGATCGGATTCGTAACCTAGGCTTAGCCATGACCGCTAGGCCTAACGCT",
+      ">MN03|MainlandMN\nATGCCGTAACCTGATCGGATTCGTAACCTAGGCTTAGCCATGACCGCTAGGCCTAACGCT",
+      ">MN04|MainlandMN\nATGCCGTAACCTGATCGGATTCGTAACCTAGGCTCAGCCATGACCGCTAGGCCTAACGCT",
+      ">ON01|OntarioNorth\nATGCCGCAACCTGATCGGATTCGTAACCTAGGCTCAGCCATGACCGCTAGGCCTAACGCT",
+      ">ON02|OntarioNorth\nATGCCGCAACCTGATCGGATTCGTAACCTAGGCTCAGCCATGACCGCTAGGCCCAACGCT",
+      ">ON03|OntarioNorth\nATGCCGCAACCTGATCGGATTCGTAACCTAGGCTCAGCCATGACCGCTAGGCCCAACGCT",
+      ">ON04|OntarioNorth\nATGCCGCAACCTGATCGGATTCGTAACCTAGGCTCAGCCATGACCGCTAGGCCCAACGTT",
+      ">ON05|OntarioNorth\nATGCCGCAACCTGATCGGATCCGTAACCTAGGCTCAGCCATGACCGTTAGGCCCAACGTT"
+    ].join("\n")
+  },
+  {
+    name: "Tribolium castaneum COI Archipelago Structured Demes (3 Islands)",
+    fasta: [
+      ">North01|NorthIsland\nGGAACCTTATATTTTATTTTTGGAGCATGAGCAGGAATAGTAGGAACTTCTTTAAGACTT",
+      ">North02|NorthIsland\nGGAACCTTATATTTTATTTTTGGAGCATGAGCAGGAATAGTAGGAACTTCTTTAAGACTT",
+      ">North03|NorthIsland\nGGAACCTTATATTTTATTTTTGGAGCATGAGCAGGAATAGTAGGAACTTCTTTAAGACTC",
+      ">North04|NorthIsland\nGGAACCTTATATTTTATTTTTGGAGCATGGGCAGGAATAGTAGGAACTTCTTTAAGACTC",
+      ">Central01|CentralAtoll\nGGAACCTTATATTTTATTTTTGGAGCATGGGCAGGAATAGTAGGAACTTCTTTAAGACTC",
+      ">Central02|CentralAtoll\nGGAACCTTATATTTTATTTTTGGAGCATGGGCAGGAATAGTGGGAACTTCTTTAAGACTC",
+      ">Central03|CentralAtoll\nGGAACCTTATATTTTATTTTTGGAGCATGGGCAGGAATAGTGGGAACTTCTTTAAGACTC",
+      ">Central04|CentralAtoll\nGGAACCTTATATTTTATTTTTGGAGCATGGGCAGGAATAGTGGGAACCTCTTTAAGACTC",
+      ">South01|SouthReef\nGGAACCTTATACTTTATTTTTGGAGCATGGGCAGGAATAGTGGGAACCTCTTTAAGACTC",
+      ">South02|SouthReef\nGGAACCTTATACTTTATTTTTGGAGCATGGGCAGGAATAGTGGGAACCTCTTTAAGTCTC",
+      ">South03|SouthReef\nGGAACCTTATACTTTATTTTTGGAGCATGGGCAGGAATAGTGGGAACCTCTTTAAGTCTC",
+      ">South04|SouthReef\nGGAACCTTATACTTTATTTTTGGAGCATGGGCAGGAATAGTGGGAACCTCTTTAAGTCTC",
+      ">South05|SouthReef\nGGAACCTTATACTTTATTTTTGGAGCATGAGCAGGAATAGTGGGAACCTCTTTAAGTCTT"
+    ].join("\n")
+  },
+  {
+    name: "Escherichia coli rpoB Star-Phylogeny Expansion Sample",
+    fasta: [
+      ">Clone01|ChemostatA\nCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTA",
+      ">Clone02|ChemostatA\nCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTA",
+      ">Clone03|ChemostatA\nCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTA",
+      ">Clone04|ChemostatA\nCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTA",
+      ">Clone05|ChemostatA\nCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTA",
+      ">Clone06|ChemostatA\nCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTG",
+      ">Clone07|ChemostatB\nCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTA",
+      ">Clone08|ChemostatB\nCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGTTA",
+      ">Clone09|ChemostatB\nCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTGGCTA",
+      ">Clone10|ChemostatB\nCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTCGCTAGCTA",
+      ">Clone11|ChemostatB\nCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTTGCTAGCTA",
+      ">Clone12|ChemostatB\nCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCAAGCTAGCTA"
+    ].join("\n")
+  },
+  {
+    name: "Chromosomal 180-bp Locus: Selective Sweep (bp 1-60) & Balancing F_ST Peak (bp 121-180)",
+    fasta: buildSweepBalancing180()
+  }
+];
+
+/* =========================================================================
+   4. DYNAMICAL & THEORETICAL SIMULATION STATE CONSTRUCTORS (V1..T4)
+   ========================================================================= */
+function pushHistory(sim, t, values, pcg, phaseKey) {
+  const prev = sim.history.length ? sim.history[sim.history.length - 1].phase : null;
+  if (prev !== phaseKey) sim.transitions.push({ t, phase: phaseKey });
+  if (sim.history.length > 1600) sim.history.splice(0, 200);
+  sim.history.push({ t, values, pcg, phase: phaseKey });
+  sim.phase = phaseKey;
+}
+
+function evalHolling(type, n, a, th) {
+  const prey = Math.max(0, n);
+  if (type === 1) return a * prey;
+  if (type === 3) {
+    const n2 = prey * prey;
+    const hs = Math.max(1.0, 1.0 / Math.max(1e-5, a * Math.max(0.01, th)));
+    return (a * n2) / Math.max(1e-9, hs + a * th * n2);
+  }
+  return (a * prey) / Math.max(1e-9, 1.0 + a * th * prey);
+}
+
+
+function evalLandscapeFitness(s, x, y) {
+  const xc = Math.max(0, Math.min(1, x)), yc = Math.max(0, Math.min(1, y));
+  const d1 = Math.pow(xc - 0.24, 2) + Math.pow(yc - 0.26, 2);
+  const d2 = Math.pow(xc - 0.76, 2) + Math.pow(yc - 0.74, 2);
+  const d3 = Math.pow(xc - 0.25, 2) + Math.pow(yc - 0.78, 2);
+  const dv = Math.pow(xc - 0.48, 2) + Math.pow(yc - 0.48, 2);
+  const p1 = s.h1 * Math.exp(-d1 / 0.036);
+  const p2 = s.h2 * Math.exp(-d2 / 0.042);
+  const p3 = 0.38 * s.rug * Math.exp(-d3 / 0.028);
+  const dip = 0.35 * s.rug * Math.exp(-dv / 0.032);
+  const rip = 0.06 * s.rug * Math.sin(4 * Math.PI * xc) * Math.cos(4 * Math.PI * yc);
+  return Math.max(0.08, 0.50 + p1 + p2 + p3 - dip + rip);
+}
+
+const MATRIX_PRESETS = [
+  {
+    name: "Loggerhead Sea Turtle (7-Stage Lefkovitch — Crouse et al. 1987)",
+    stages: ["1. Eggs/Hatch", "2. Small Juv", "3. Large Juv", "4. Subadult", "5. Novice Brd", "6. Remigrant", "7. Mature Brd"],
+    base: [
+      [0, 0, 0, 0, 127, 4, 80],
+      [0.6747, 0.7370, 0, 0, 0, 0, 0],
+      [0, 0.0486, 0.6610, 0, 0, 0, 0],
+      [0, 0, 0.0147, 0.6907, 0, 0, 0],
+      [0, 0, 0, 0.0518, 0, 0, 0],
+      [0, 0, 0, 0, 0.8091, 0, 0],
+      [0, 0, 0, 0, 0, 0.8091, 0.8089]
+    ],
+    initN: [900, 420, 140, 35, 6, 5, 18],
+    seedStasis: false
+  },
+  {
+    name: "Passerine Songbird (4-Age Strict Leslie Matrix — Leslie 1945)",
+    stages: ["Age 0-1 Fledgling", "Age 1-2 Yearling", "Age 2-3 Prime", "Age 3-4 Senescent"],
+    base: [
+      [0.45, 1.65, 2.10, 0.90],
+      [0.38, 0, 0, 0],
+      [0, 0.58, 0, 0],
+      [0, 0, 0.44, 0]
+    ],
+    initN: [500, 60, 20, 5],
+    seedStasis: false
+  },
+  {
+    name: "Woodland Perennial Herb (5-Stage Seed/Vegetative/Flowering Lefkovitch)",
+    stages: ["1. Seed Bank", "2. Seedling", "3. Small Veg", "4. 1-Flwr Adult", "5. Multi-Flwr"],
+    base: [
+      [0.35, 0, 0, 4.2, 11.5],
+      [0.18, 0, 0, 0.35, 0.85],
+      [0, 0.42, 0.64, 0.08, 0],
+      [0, 0, 0.22, 0.72, 0.12],
+      [0, 0, 0, 0.14, 0.84]
+    ],
+    initN: [400, 120, 95, 45, 22],
+    seedStasis: true
+  }
+];
+
+function buildActiveMatrixT6(s) {
+  const pr = MATRIX_PRESETS[s.presetIdx] || MATRIX_PRESETS[0];
+  const k = pr.base.length, adultStart = Math.floor((k * 3) / 5);
+  const mat = pr.base.map(r => r.slice());
+  for (let r = 0; r < k; r++) {
+    for (let c = 0; c < k; c++) {
+      if (r === 0 && !(pr.seedStasis && c === 0) && mat[r][c] > 0) {
+        mat[r][c] = Math.max(0, mat[r][c] * s.fecMult);
+      } else if (r > 0 && mat[r][c] > 0) {
+        mat[r][c] = Math.min(0.995, mat[r][c] * (c < adultStart ? s.juvMult : s.adultMult));
+      }
+    }
+  }
+  for (let c = 0; c < k; c++) {
+    let surv = 0;
+    for (let r = 1; r < k; r++) surv += mat[r][c];
+    if (pr.seedStasis && c === 0) surv += mat[0][0];
+    if (surv > 0.995) {
+      const sc = 0.995 / surv;
+      for (let r = 1; r < k; r++) mat[r][c] *= sc;
+      if (pr.seedStasis && c === 0) mat[0][0] *= sc;
+    }
+  }
+  return mat;
+}
+
+function recomputeEigenT6(s) {
+  const mat = buildActiveMatrixT6(s), k = mat.length;
+  let w = new Array(k).fill(1 / k), lam = 1;
+  for (let it = 0; it < 160; it++) {
+    const nw = new Array(k).fill(0);
+    for (let r = 0; r < k; r++) for (let c = 0; c < k; c++) nw[r] += mat[r][c] * w[c];
+    const sum = nw.reduce((a, b) => a + b, 0);
+    if (sum <= 1e-14) { lam = 0; break; }
+    lam = sum;
+    w = nw.map(x => x / sum);
+  }
+  let v = new Array(k).fill(1);
+  for (let it = 0; it < 160; it++) {
+    const nv = new Array(k).fill(0);
+    for (let c = 0; c < k; c++) for (let r = 0; r < k; r++) nv[c] += mat[r][c] * v[r];
+    const mx = Math.max(1e-12, ...nv);
+    v = nv.map(x => x / mx);
+  }
+  if (v[0] > 1e-9) { const v0 = v[0]; v = v.map(x => x / v0); }
+  const vw = Math.max(1e-12, v.reduce((acc, vi, i) => acc + vi * w[i], 0));
+  const elast = Array.from({ length: k }, () => new Array(k).fill(0));
+  const stageEl = new Array(k).fill(0);
+  let eSum = 0;
+  for (let r = 0; r < k; r++) {
+    for (let c = 0; c < k; c++) {
+      if (mat[r][c] > 0 && lam > 1e-12) {
+        const eij = (mat[r][c] / lam) * ((v[r] * w[c]) / vw);
+        elast[r][c] = eij;
+        stageEl[c] += eij;
+        eSum += eij;
+      }
+    }
+  }
+  if (eSum > 1e-9) {
+    for (let r = 0; r < k; r++) for (let c = 0; c < k; c++) elast[r][c] /= eSum;
+    for (let c = 0; c < k; c++) stageEl[c] /= eSum;
+  }
+  s.mat = mat; s.lam = lam; s.r = Math.log(Math.max(1e-9, lam)); s.w = w; s.v = v; s.elast = elast; s.stageEl = stageEl;
+}
+
+function createInitialSimStates() {
+  const sims = {};
+
+  // V1: Hare-Lynx
+  sims.V1 = {
+    t: 0, dt: 0.05, hares: 45, lynx: 9, rH: 0.92, kH: 180, a: 0.028, th: 0.32, eff: 0.24, mL: 0.42,
+    holling: 2, noise: false, sigma: 0.05, disp: 0.35, rng: new SimRng(1001), agents: [], history: [], transitions: [], phase: "Exp",
+    seriesNames: ["Snowshoe Hares (/km²)", "Canada Lynx (/100 km²)", "Predation Flux f(H)*L"]
+  };
+  syncAgentsV1(sims.V1);
+  pushHistory(sims.V1, 0, [45, 9, evalHolling(2, 45, 0.028, 0.32) * 9], 0.3, "Exp");
+
+  // V2: Isle Royale
+  sims.V2 = {
+    t: 1959, dt: 0.25, moose: 650, wolves: 22, fir: 85, rM: 0.24, kM: 1850, kill: 14.5, th: 0.042,
+    eff: 0.026, mW: 0.21, allee: 6.0, winter: 0.35, rescue: false, rng: new SimRng(1959), agents: [], history: [], transitions: [], phase: "Exp",
+    seriesNames: ["Moose Abundance", "Gray Wolves (x20)", "Balsam Fir Browse (%)"]
+  };
+  syncAgentsV2(sims.V2);
+  pushHistory(sims.V2, 1959, [650, 440, 85], 0.08, "Exp");
+
+  // V3: Soay Sheep
+  sims.V3 = {
+    t: 1985, pop: 620, lam: 2.35, k: 1150, beta: 3.4, galeProb: 0.28, galeSev: 0.42, lastLoss: 0,
+    rng: new SimRng(1985), agents: [], history: [], transitions: [], phase: "Exp",
+    seriesNames: ["Hirta Soay Sheep", "Pasture Scale K", "Winter Gale Mortality (%)"]
+  };
+  syncAgentsV3(sims.V3);
+  pushHistory(sims.V3, 1985, [620, 1150, 0], 0.0, "Exp");
+
+  // I1: Tribolium LPA
+  sims.I1 = {
+    t: 0, L: 120, P: 35, A: 65, conf: 60, parkMode: false, b: 10.45, cel: 0.0173, cea: 0.0131,
+    cpa: 0.35, mul: 0.20, mua: 0.96, alpha: 1.12, rng: new SimRng(2001), agents: [], history: [], transitions: [], phase: "Chaos",
+    seriesNames: ["Larvae L_t", "Pupae P_t", "Adults A_t", "T. confusum Competitor"]
+  };
+  syncAgentsI1(sims.I1);
+  pushHistory(sims.I1, 0, [120, 35, 65, 0], 0.0, "Chaos");
+
+  // I2: Huffaker 6x4 Citrus Tray Mites
+  const rngI2 = new SimRng(1958);
+  const preyP = new Array(24).fill(0), predP = new Array(24).fill(0);
+  for (let i = 0; i < 24; i++) {
+    if (i % 3 === 0) preyP[i] = rngI2.range(25, 85);
+    else if (i % 5 === 0) { preyP[i] = 18; predP[i] = 5; }
+  }
+  predP[0] = 8;
+  sims.I2 = {
+    t: 0, dt: 0.1, cols: 6, rows: 4, preyP, predP, r: 0.85, kPatch: 220, a: 0.045, th: 0.12,
+    eff: 0.28, m: 0.36, dN: 0.22, dP: 0.09, barrier: 0.72, rng: rngI2, history: [], transitions: [], phase: "Cycle",
+    seriesNames: ["Total Six-Spotted Mites", "Predatory Mites (x10)", "Occupied Prey Oranges"]
+  };
+  const sumN2 = preyP.reduce((a, b) => a + b, 0), sumP2 = predP.reduce((a, b) => a + b, 0);
+  pushHistory(sims.I2, 0, [sumN2, sumP2 * 10, preyP.filter(x => x >= 1).length], 0.1, "Cycle");
+
+  // I3: Pea Aphid & Aphidius Wasp
+  sims.I3 = {
+    t: 0, H: 140, W: 28, M: 15, lam: 2.2, kHost: 1200, a: 0.032, clumpK: 0.78, refuge: 0.12, c: 0.92,
+    rng: new SimRng(3003), agents: [], history: [], transitions: [], phase: "Exp",
+    seriesNames: ["Pea Aphids H_t", "Adult Wasps W_t", "Parasitized Mummies"]
+  };
+  syncAgentsI3(sims.I3);
+  pushHistory(sims.I3, 0, [140, 28, 15], 0.0, "Exp");
+
+  // M1: E. coli Batch & Monod Chemostat
+  sims.M1 = {
+    t: 0, dt: 0.08, live: 1.5, dead: 0.05, glc: 4.0, lac: 3.0, enz: 0.06, lacOp: 0.02, waste: 0.0,
+    mu1: 0.95, ks1: 0.12, mu2: 0.58, ks2: 0.25, yld: 28.0, lagR: 0.85, deathR: 0.09,
+    chemostat: false, dil: 0.25, s0: 4.0, diauxic: false, rng: new SimRng(4001), agents: [], history: [], transitions: [], phase: "Lag",
+    seriesNames: ["Viable E. coli (10^7/mL)", "log10(CFU/mL) x 20", "Total Turbidity", "Glucose (g/L x 25)"]
+  };
+  syncAgentsM1(sims.M1);
+  pushHistory(sims.M1, 0, [1.5, Math.log10(1.5e7) * 20, 1.55, 100], 0.0, "Lag");
+
+  // M2: Gause Protists
+  sims.M2 = {
+    t: 0, dt: 0.1, compMode: false, caud: 32, aur: 28, did: 8, rC: 0.78, kC: 195, rA: 1.05, kA: 240,
+    aCA: 0.62, aAC: 1.38, att: 0.045, th: 0.18, refuge: 0.22, immig: true, rng: new SimRng(1934), agents: [], history: [], transitions: [], phase: "Exp",
+    seriesNames: ["P. caudatum", "Didinium (or P. aurelia)", "Refuge (%)"]
+  };
+  syncAgentsM2(sims.M2);
+  pushHistory(sims.M2, 0, [32, 8, 22], 0.1, "Exp");
+
+  // M3: T4 Bacteriophage Plaque Wave
+  const side = 24;
+  const lawn = new Array(side * side).fill(0.65);
+  const pgrid = new Array(side * side).fill(0.0);
+  [[7, 8], [15, 16], [16, 7]].forEach(([r, c]) => { pgrid[r * side + c] = 12.0; lawn[r * side + c] = 0.25; });
+  sims.M3 = {
+    t: 0, dt: 0.05, S: 85, I: 1.2, R: 0.05, V: 14, nut: 100, mu: 0.82, phi: 0.0085, lys: 1.45,
+    burst: 45, dec: 0.12, mut: 0.0008, side, lawn, pgrid, rng: new SimRng(5005), history: [], transitions: [], phase: "Exp",
+    seriesNames: ["Susceptible E. coli S", "Infected Eclipse I", "Resistant Mutants R", "Free T4 Phage (x0.1)"]
+  };
+  pushHistory(sims.M3, 0, [85, 1.2, 0.05, 1.4], 0.2, "Exp");
+
+  // T1: Levins Metapopulation
+  const rngT1 = new SimRng(1969);
+  const patches = [];
+  for (let i = 0; i < 64; i++) {
+    const r = Math.floor(i / 8), c = i % 8;
+    patches.push({
+      x: Math.min(0.94, Math.max(0.06, (c + 0.5) / 8 + rngT1.range(-0.03, 0.03))),
+      y: Math.min(0.94, Math.max(0.06, (r + 0.5) / 8 + rngT1.range(-0.03, 0.03))),
+      destroyed: i < 8,
+      occupied: i >= 8 && i % 3 !== 0
+    });
+  }
+  sims.T1 = {
+    t: 0, dt: 0.1, detP: 0.55, c: 0.62, e: 0.20, h: 0.125, patches, rng: rngT1, history: [], transitions: [], phase: "Decel",
+    seriesNames: ["Stochastic Occupancy (%)", "Deterministic Levins p(t) (%)", "Equilibrium p* (%)"]
+  };
+  pushHistory(sims.T1, 0, [58, 55, (1 - 0.125 - 0.20 / 0.62) * 100], 0.0, "Decel");
+
+  // T2: May Discrete Logistic & Ricker
+  sims.T2 = {
+    t: 0, ricker: false, r: 2.62, k: 100, n: 18, lyapSum: 0, lyapCnt: 0, cobweb: [[18, 0]],
+    history: [], transitions: [], phase: "Chaos",
+    seriesNames: ["Population N_t", "Carrying Capacity K", "Lyapunov lambda (x50)"]
+  };
+  pushHistory(sims.T2, 0, [18, 100, 0], 0, "Chaos");
+
+  // T3: Wright-Fisher Multi-Deme
+  sims.T3 = {
+    t: 0, ne: 60, demes: 6, p0: 0.50, wAA: 1.0, wAa: 1.0, waa: 0.94, mu: 0.0005, nu: 0.0005, m: 0.01,
+    freqs: new Array(6).fill(0.50), tracks: Array.from({ length: 6 }, () => [0.50]),
+    rng: new SimRng(1931), history: [], transitions: [], phase: "Drift",
+    seriesNames: ["Mean Allele Freq p_bar", "Within-Deme H_S", "Total H_T", "Fixation Index F_ST"]
+  };
+  pushHistory(sims.T3, 0, [0.5, 0.5, 0.5, 0.0], 0.0, "Drift");
+
+  // T4: Kingman Coalescent
+  sims.T4 = {
+    t: 0, n: 14, ne: 1000, theta: 12.0, nodes: [], branches: [], tmrca: 0, cumSfs: new Array(13).fill(0),
+    rng: new SimRng(1982), history: [], transitions: [], phase: "Drift",
+    seriesNames: ["Simulated T_MRCA", "Expected E[T_MRCA]", "Tree Mutations S"]
+  };
+  stepKingman(sims.T4);
+
+  // T5: Sewall Wright 3D Adaptive Fitness Landscape
+  const rngT5 = new SimRng(1932);
+  sims.T5 = {
+    t: 0, demesN: 8, ne: 38, sel: 0.16, m: 0.018, h1: 0.55, h2: 1.05, rug: 0.32,
+    az: -38, el: 30, demes: [], rng: rngT5, history: [], transitions: [], phase: "Drift",
+    seriesNames: ["Mean Fitness W_bar", "Max Deme Fitness", "Global Peak Share (%)"]
+  };
+  for (let i = 0; i < 8; i++) {
+    const x = rngT5.range(0.14, 0.34), y = rngT5.range(0.15, 0.36);
+    const w = evalLandscapeFitness(sims.T5, x, y);
+    sims.T5.demes.push({ x, y, w, trail: [[x, y, w]] });
+  }
+  const mw0 = sims.T5.demes.reduce((a, d) => a + d.w, 0) / 8;
+  pushHistory(sims.T5, 0, [mw0, Math.max(...sims.T5.demes.map(d => d.w)), 0], 0, "Drift");
+
+  // T6: Leslie & Lefkovitch Age/Stage Matrix Projection
+  sims.T6 = {
+    t: 0, presetIdx: 0, fecMult: 1.0, juvMult: 1.0, adultMult: 1.0, densityReg: false, recK: 5000,
+    nVec: MATRIX_PRESETS[0].initN.slice(), realizedLam: 0.945, lam: 0.945, r: -0.056,
+    mat: [], w: [], v: [], elast: [], stageEl: [], history: [], transitions: [], phase: "Decel",
+    seriesNames: ["Total Population N(t)", "Stage 1 (Eggs/Seeds)", "Reproductive Adults", "lambda_1 (x100)"]
+  };
+  recomputeEigenT6(sims.T6);
+  sims.T6.realizedLam = sims.T6.lam;
+  const tot6 = sims.T6.nVec.reduce((a, b) => a + b, 0);
+  pushHistory(sims.T6, 0, [tot6, sims.T6.nVec[0], sims.T6.nVec.slice(4).reduce((a, b) => a + b, 0), sims.T6.lam * 100], sims.T6.r, "Decel");
+
+  return sims;
+}
+
+/* Spatial Agent Helpers */
+function syncAgentsV1(s) {
+  const nh = Math.max(1, Math.min(200, Math.round(s.hares * 1.05)));
+  const nl = Math.max(1, Math.min(70, Math.round(s.lynx * 1.7)));
+  const ha = s.agents.filter(a => a.kind === 0);
+  const la = s.agents.filter(a => a.kind === 1);
+  while (ha.length < nh) ha.push({ x: s.rng.nextF64(), y: s.rng.nextF64(), vx: 0, vy: 0, kind: 0, aux: 1 });
+  ha.length = nh;
+  while (la.length < nl) la.push({ x: s.rng.nextF64(), y: s.rng.nextF64(), vx: 0, vy: 0, kind: 1, aux: 1 });
+  la.length = nl;
+  s.agents = ha.concat(la);
+}
+function syncAgentsV2(s) {
+  const nm = Math.max(2, Math.min(180, Math.round(s.moose / 12)));
+  const nw = Math.max(0, Math.min(60, Math.round(s.wolves)));
+  const ma = s.agents.filter(a => a.kind === 0);
+  const wa = s.agents.filter(a => a.kind === 1);
+  while (ma.length < nm) {
+    const u = s.rng.range(0.12, 0.88);
+    ma.push({ x: u, y: 0.50 + 0.14 * (u - 0.5) + s.rng.range(-0.14, 0.14), vx: 0, vy: 0, kind: 0, aux: 0 });
+  }
+  ma.length = nm;
+  while (wa.length < nw) {
+    const pk = wa.length % 3;
+    wa.push({ x: 0.25 + 0.25 * pk + s.rng.range(-0.05, 0.05), y: 0.42 + 0.08 * pk + s.rng.range(-0.05, 0.05), vx: 0, vy: 0, kind: 1, aux: pk });
+  }
+  wa.length = nw;
+  s.agents = ma.concat(wa);
+}
+function syncAgentsV3(s) {
+  const cnt = Math.max(3, Math.min(220, Math.round(s.pop / 9)));
+  while (s.agents.length < cnt) s.agents.push({ x: s.rng.range(0.08, 0.92), y: s.rng.range(0.08, 0.88), vx: 0, vy: 0, kind: 0, aux: 1 });
+  s.agents.length = cnt;
+}
+function syncAgentsI1(s) {
+  s.agents = [];
+  const nl = Math.min(110, Math.round(s.L * 0.35));
+  const np = Math.min(85, Math.round(s.P * 0.35));
+  const na = Math.min(95, Math.round(s.A * 0.50));
+  for (let i = 0; i < na; i++) s.agents.push({ x: s.rng.range(0.05, 0.95), y: s.rng.range(0.06, 0.32), kind: 2 });
+  for (let i = 0; i < nl; i++) s.agents.push({ x: s.rng.range(0.05, 0.95), y: s.rng.range(0.35, 0.66), kind: 0 });
+  for (let i = 0; i < np; i++) s.agents.push({ x: s.rng.range(0.05, 0.95), y: s.rng.range(0.69, 0.95), kind: 1 });
+}
+function syncAgentsI3(s) {
+  s.agents = [];
+  const nh = Math.min(140, Math.max(1, Math.round(s.H / 8)));
+  const nw = Math.min(60, Math.max(1, Math.round(s.W / 6)));
+  const nm = Math.min(45, Math.round(s.M / 10));
+  for (let i = 0; i < nh; i++) {
+    const sx = 0.16 + 0.17 * (i % 5);
+    s.agents.push({ x: sx + s.rng.range(-0.028, 0.028), y: s.rng.range(0.12, 0.88), kind: 0, aux: (i / nh) < s.refuge ? 1 : 0 });
+  }
+  for (let i = 0; i < nw; i++) s.agents.push({ x: s.rng.range(0.06, 0.94), y: s.rng.range(0.08, 0.90), kind: 1, aux: 0 });
+  for (let i = 0; i < nm; i++) s.agents.push({ x: 0.16 + 0.17 * (i % 5) + s.rng.range(-0.02, 0.02), y: s.rng.range(0.18, 0.86), kind: 2, aux: 0 });
+}
+function syncAgentsM1(s) {
+  const nl = Math.min(200, Math.max(2, Math.round(s.live * 1.15)));
+  const nd = Math.min(80, Math.round(s.dead * 0.85));
+  const liveA = s.agents.filter(a => a.kind === 0);
+  const deadA = s.agents.filter(a => a.kind === 2);
+  while (liveA.length < nl) {
+    const p = liveA.length ? liveA[s.rng.genIndex(liveA.length)] : { x: s.rng.range(0.2, 0.8), y: s.rng.range(0.2, 0.8) };
+    liveA.push({ x: Math.min(0.94, Math.max(0.06, p.x + s.rng.range(-0.04, 0.04))), y: Math.min(0.94, Math.max(0.06, p.y + s.rng.range(-0.04, 0.04))), kind: 0, aux: s.rng.nextF64() });
+  }
+  liveA.length = nl;
+  while (deadA.length < nd) deadA.push({ x: s.rng.range(0.06, 0.94), y: s.rng.range(0.06, 0.94), kind: 2, aux: s.rng.nextF64() });
+  deadA.length = nd;
+  s.agents = liveA.concat(deadA);
+}
+function syncAgentsM2(s) {
+  s.agents = [];
+  const n0 = Math.min(130, Math.round(s.caud * 0.85));
+  const n1 = Math.min(120, Math.round((s.compMode ? s.aur : s.did * 1.4)));
+  for (let i = 0; i < n0; i++) {
+    const inRef = !s.compMode && (i / Math.max(1, n0)) < s.refuge;
+    s.agents.push({ x: s.rng.range(0.06, 0.94), y: inRef ? s.rng.range(0.79, 0.95) : s.rng.range(0.06, 0.76), kind: 0 });
+  }
+  for (let i = 0; i < n1; i++) s.agents.push({ x: s.rng.range(0.06, 0.94), y: s.rng.range(0.06, 0.76), kind: 1 });
+}
+
+/* =========================================================================
+   5. STEPPING EQUATIONS ACROSS ALL 13 DYNAMICAL / THEORETICAL MODULES
+   ========================================================================= */
+function stepKingman(s) {
+  const n = Math.max(4, Math.min(32, Math.round(s.n)));
+  s.n = n;
+  if (s.cumSfs.length !== n - 1) s.cumSfs = new Array(n - 1).fill(0);
+  const nodes = [];
+  const active = [];
+  for (let i = 0; i < n; i++) {
+    nodes.push({ id: i, time: 0, x: (i + 0.5) / n, leaf: true, tips: 1 });
+    active.push(i);
+  }
+  const branches = [];
+  let t = 0;
+  while (active.length > 1) {
+    const k = active.length;
+    const rate = (k * (k - 1)) / (4.0 * Math.max(10, s.ne));
+    t += s.rng.exponential(rate);
+    const a = active.splice(s.rng.genIndex(active.length), 1)[0];
+    const b = active.splice(s.rng.genIndex(active.length), 1)[0];
+    const pid = nodes.length;
+    [a, b].forEach(cid => {
+      const len = Math.max(0, t - nodes[cid].time);
+      const meanM = s.theta * len / (4.0 * Math.max(10, s.ne));
+      let muts = 0, lim = Math.exp(-Math.min(25, meanM)), p = s.rng.nextF64();
+      while (p > lim && muts < 40) { muts++; p *= s.rng.nextF64(); }
+      branches.push({ child: cid, parent: pid, len, muts, tips: nodes[cid].tips });
+    });
+    nodes.push({ id: pid, time: t, x: 0.5 * (nodes[a].x + nodes[b].x), leaf: false, tips: nodes[a].tips + nodes[b].tips });
+    active.push(pid);
+  }
+  let totM = 0;
+  branches.forEach(br => {
+    totM += br.muts;
+    if (br.tips >= 1 && br.tips < n) s.cumSfs[br.tips - 1] += br.muts;
+  });
+  s.nodes = nodes;
+  s.branches = branches;
+  s.tmrca = t;
+  s.t += 1;
+  pushHistory(s, s.t, [t, 4 * s.ne * (1 - 1 / n), totM], 0, "Drift");
+}
+
+function stepSimulation(id) {
+  const s = APP.sims[id];
+  if (!s) return;
+
+  if (id === "V1") {
+    const dt = s.dt;
+    const deriv = (h, l) => {
+      const fh = evalHolling(s.holling, h, s.a, s.th);
+      return [s.rH * h * (1 - h / Math.max(1, s.kH)) - fh * l, s.eff * fh * l - s.mL * l];
+    };
+    const [k1h, k1l] = deriv(s.hares, s.lynx);
+    const [k2h, k2l] = deriv(s.hares + 0.5 * dt * k1h, s.lynx + 0.5 * dt * k1l);
+    const [k3h, k3l] = deriv(s.hares + 0.5 * dt * k2h, s.lynx + 0.5 * dt * k2l);
+    const [k4h, k4l] = deriv(s.hares + dt * k3h, s.lynx + dt * k3l);
+    let hn = s.hares + (dt / 6) * (k1h + 2 * k2h + 2 * k3h + k4h);
+    let ln = s.lynx + (dt / 6) * (k1l + 2 * k2l + 2 * k3l + k4l);
+    if (s.noise) {
+      hn += s.sigma * Math.sqrt(Math.max(0, hn) * dt) * s.rng.normal();
+      ln += s.sigma * Math.sqrt(Math.max(0, ln) * dt) * s.rng.normal();
+    }
+    s.hares = Math.max(0.05, Math.min(s.kH * 3, hn));
+    s.lynx = Math.max(0.02, Math.min(s.kH * 1.5, ln));
+    s.t += dt;
+    const [dh, dl] = deriv(s.hares, s.lynx);
+    const ph = s.hares < 0.08 * s.kH ? "Crash" : (dl > 0.02 && dh < 0 ? "Overshoot" : (dh > 0 && s.hares < 0.45 * s.kH ? "Exp" : (dh > 0 ? "Decel" : "Cycle")));
+    pushHistory(s, s.t, [s.hares, s.lynx, evalHolling(s.holling, s.hares, s.a, s.th) * s.lynx], dh / Math.max(1e-6, s.hares), ph);
+    syncAgentsV1(s);
+    s.agents.forEach(a => {
+      a.vx = Math.max(-0.02, Math.min(0.02, 0.85 * (a.vx || 0) + s.rng.range(-0.007, 0.007) * s.disp));
+      a.vy = Math.max(-0.02, Math.min(0.02, 0.85 * (a.vy || 0) + s.rng.range(-0.007, 0.007) * s.disp));
+      a.x = (a.x + a.vx + 1) % 1;
+      a.y = (a.y + a.vy + 1) % 1;
+    });
+  } else if (id === "V2") {
+    const dt = s.dt;
+    const kEff = Math.max(150, s.kM * Math.max(0.35, Math.min(1.35, s.fir / 85)));
+    const rEff = s.rM * (1 - 0.38 * s.winter);
+    const kills = (s.kill * s.moose * s.wolves) / Math.max(1e-6, s.wolves + s.kill * s.th * s.moose);
+    const dm = rEff * s.moose * (1 - s.moose / kEff) - kills;
+    const allee = s.wolves <= 0.1 ? 0 : s.wolves / (s.wolves + s.allee);
+    const dw = s.eff * kills * allee - s.mW * s.wolves + (s.rescue && s.wolves < 8 ? 0.45 : 0);
+    const df = 0.14 * s.fir * (1 - s.fir / 100) - 0.0085 * s.moose * (s.fir / 100);
+    s.moose = Math.max(10, Math.min(3500, s.moose + dt * dm));
+    s.wolves = Math.max(0, Math.min(90, s.wolves + dt * dw));
+    s.fir = Math.max(10, Math.min(100, s.fir + dt * df));
+    s.t += dt;
+    const ph = s.wolves < s.allee ? "Crash" : (dw > 0.3 && dm < 0 ? "Overshoot" : (dm > 15 ? "Exp" : "Cycle"));
+    pushHistory(s, s.t, [s.moose, s.wolves * 20, s.fir], dm / s.moose, ph);
+    syncAgentsV2(s);
+    s.agents.forEach(a => {
+      a.x = Math.min(0.89, Math.max(0.11, a.x + s.rng.range(-0.009, 0.009)));
+      a.y = Math.min(0.76, Math.max(0.24, a.y + s.rng.range(-0.007, 0.007)));
+    });
+  } else if (id === "V3") {
+    const prev = s.pop;
+    const hit = s.rng.nextF64() < s.galeProb;
+    const wStorm = hit ? s.galeSev * s.rng.range(0.75, 1.25) : 0.03 * s.rng.nextF64();
+    s.lastLoss = (1 - Math.exp(-wStorm)) * 100;
+    const denom = 1 + Math.pow(s.pop / Math.max(50, s.k), s.beta);
+    s.pop = Math.max(25, Math.min(3500, (s.pop * s.lam * Math.exp(-wStorm)) / denom));
+    s.t += 1;
+    const pcg = Math.log(s.pop / Math.max(1, prev));
+    const ph = pcg < -0.28 ? "Crash" : (pcg > 0.18 ? "Exp" : (s.beta > 3.8 ? "Chaos" : "Cycle"));
+    pushHistory(s, s.t, [s.pop, s.k, s.lastLoss], pcg, ph);
+    syncAgentsV3(s);
+    s.agents.forEach(a => {
+      a.x = Math.min(0.93, Math.max(0.07, a.x + s.rng.range(-0.018, 0.018)));
+      a.y = Math.min(0.88, Math.max(0.07, a.y + s.rng.range(-0.018, 0.018)));
+    });
+  } else if (id === "I1") {
+    const prev = Math.max(1, s.L + s.P + s.A);
+    const comp = s.parkMode ? s.alpha * s.conf : 0;
+    const nL = s.b * s.A * Math.exp(-s.cel * s.L - s.cea * (s.A + comp));
+    const nP = (1 - s.mul) * s.L;
+    const nA = s.P * Math.exp(-s.cpa * (s.A + 0.5 * comp)) + (1 - s.mua) * s.A;
+    if (s.parkMode) {
+      s.conf = Math.max(0, Math.min(600, s.conf * Math.exp(0.45 * (1 - (s.conf + 0.94 * s.A) / 190))));
+    }
+    s.L = Math.max(0.1, Math.min(1500, nL));
+    s.P = Math.max(0.1, Math.min(1200, nP));
+    s.A = Math.max(0.5, Math.min(1000, nA));
+    s.t += 1;
+    const tot = s.L + s.P + s.A;
+    const pcg = Math.log(tot / prev);
+    const ph = (s.cpa >= 0.25 && s.mua >= 0.90) ? "Chaos" : (Math.abs(pcg) < 0.015 ? "Stat" : (pcg > 0.15 ? "Exp" : "Cycle"));
+    pushHistory(s, s.t, [s.L, s.P, s.A, s.parkMode ? s.conf : 0], pcg, ph);
+    syncAgentsI1(s);
+  } else if (id === "I2") {
+    const dt = s.dt;
+    const prevN = s.preyP.reduce((a, b) => a + b, 0);
+    const nN = s.preyP.slice(), nP = s.predP.slice();
+    const dNeff = s.dN * (1 - 0.55 * s.barrier), dPeff = s.dP * (1 - 0.92 * s.barrier);
+    for (let r = 0; r < s.rows; r++) {
+      for (let c = 0; c < s.cols; c++) {
+        const i = r * s.cols + c;
+        let lapN = 0, lapP = 0;
+        [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].forEach(([nr, nc]) => {
+          if (nr >= 0 && nr < s.rows && nc >= 0 && nc < s.cols) {
+            const ni = nr * s.cols + nc;
+            lapN += s.preyP[ni] - s.preyP[i];
+            lapP += s.predP[ni] - s.predP[i];
+          }
+        });
+        const fn = (s.a * s.preyP[i]) / (1 + s.a * s.th * s.preyP[i]);
+        let vn = Math.max(0, s.preyP[i] + dt * (s.r * s.preyP[i] * (1 - s.preyP[i] / s.kPatch) - fn * s.predP[i] + dNeff * lapN));
+        let vp = Math.max(0, s.predP[i] + dt * (s.eff * fn * s.predP[i] - s.m * s.predP[i] + dPeff * lapP));
+        if (vn < 0.08 && s.rng.nextF64() < 0.15) vn = 0;
+        if (vp < 0.05 && s.rng.nextF64() < 0.18) vp = 0;
+        if (vn === 0 && prevN > 25 && s.rng.nextF64() < 0.015) vn = 2.5;
+        nN[i] = Math.min(s.kPatch * 1.5, vn);
+        nP[i] = Math.min(s.kPatch, vp);
+      }
+    }
+    s.preyP = nN; s.predP = nP; s.t += dt;
+    const totN = nN.reduce((a, b) => a + b, 0), totP = nP.reduce((a, b) => a + b, 0);
+    const pcg = prevN > 0.1 && totN > 0.1 ? Math.log(totN / prevN) / dt : 0;
+    const ph = totN < 5 ? "Crash" : (totP > totN * 0.25 && pcg < 0 ? "Overshoot" : "Cycle");
+    pushHistory(s, s.t, [totN, totP * 10, nN.filter(x => x >= 1).length], pcg, ph);
+  } else if (id === "I3") {
+    const prevH = Math.max(0.1, s.H);
+    const nb = Math.pow(1 + (s.a * s.W) / Math.max(0.08, s.clumpK), -Math.max(0.08, s.clumpK));
+    const esc = Math.min(1, Math.max(0, s.refuge + (1 - s.refuge) * nb));
+    const para = s.H * (1 - esc);
+    const dd = Math.exp(-(s.H / Math.max(50, s.kHost)) * Math.max(0.1, Math.log(s.lam)));
+    s.M = para;
+    s.H = Math.max(0.5, Math.min(4000, s.lam * s.H * dd * esc));
+    s.W = Math.max(0.1, Math.min(3000, s.c * para));
+    s.t += 1;
+    const pcg = Math.log(s.H / prevH);
+    const ph = s.H < 15 ? "Crash" : (s.W > s.H * 0.65 ? "Overshoot" : (Math.abs(pcg) < 0.03 ? "Stat" : "Cycle"));
+    pushHistory(s, s.t, [s.H, s.W, s.M], pcg, ph);
+    syncAgentsI3(s);
+  } else if (id === "M1") {
+    const dt = s.dt, dil = s.chemostat ? s.dil : 0;
+    s.enz = Math.min(1, s.enz + dt * s.lagR * (1 - s.enz));
+    const rep = 0.08 / (0.08 + s.glc);
+    if (s.diauxic && s.lac > 0.02) s.lacOp = Math.min(1, s.lacOp + dt * 1.15 * rep * (1 - s.lacOp));
+    const tox = 1 / (1 + 0.45 * s.waste);
+    const muG = s.enz * s.mu1 * (s.glc / Math.max(1e-6, s.ks1 + s.glc)) * tox;
+    const muL = s.diauxic ? s.enz * s.lacOp * s.mu2 * (s.lac / Math.max(1e-6, s.ks2 + s.lac)) * rep * tox : 0;
+    const gross = muG + muL;
+    const starve = (s.glc + (s.diauxic ? s.lac : 0) < 0.05) ? (1 + 1.8 * s.waste) : 0.15 * s.waste;
+    const kd = s.chemostat ? 0.015 : s.deathR * starve;
+    const net = gross - kd - dil;
+    s.live = Math.max(0.01, Math.min(500, s.live + dt * net * s.live));
+    s.dead = Math.max(0, Math.min(500, s.dead + dt * (kd * s.live - dil * s.dead)));
+    s.glc = Math.max(0, Math.min(20, s.glc + dt * (-(muG * s.live) / s.yld + dil * (s.s0 - s.glc))));
+    if (s.diauxic) s.lac = Math.max(0, Math.min(20, s.lac - dt * ((muL * s.live) / s.yld + dil * s.lac)));
+    s.waste = Math.max(0, Math.min(25, s.waste + dt * (s.chemostat ? (0.002 * gross * s.live - dil * s.waste) : (0.0035 * gross * s.live + 0.02 * starve))));
+    s.t += dt;
+    const ph = s.enz < 0.55 ? "Lag" : (s.diauxic && s.glc < 0.08 && s.lac > 0.15 && s.lacOp < 0.65 ? "Diauxic" : (net > 0.35 * s.mu1 ? "Exp" : (net > 0.04 ? "Decel" : (net >= -0.025 ? "Stat" : "Death"))));
+    pushHistory(s, s.t, [s.live, Math.log10(Math.max(0.01, s.live) * 1e7) * 20, s.live + s.dead, s.glc * 25], net, ph);
+    syncAgentsM1(s);
+  } else if (id === "M2") {
+    const dt = s.dt, prev = Math.max(0.05, s.caud);
+    if (s.compMode) {
+      const dc = s.rC * s.caud * (1 - (s.caud + s.aAC * s.aur) / s.kC);
+      const da = s.rA * s.aur * (1 - (s.aur + s.aCA * s.caud) / s.kA);
+      s.caud = Math.max(0, Math.min(400, s.caud + dt * dc));
+      s.aur = Math.max(0, Math.min(400, s.aur + dt * da));
+      s.t += dt;
+      pushHistory(s, s.t, [s.caud, s.aur, 0], dc / prev, s.caud < 2 ? "Stat" : "Decel");
+    } else {
+      const expPrey = (1 - s.refuge) * s.caud;
+      const pr = (s.att * expPrey) / (1 + s.att * s.th * expPrey);
+      const dc = s.rC * s.caud * (1 - s.caud / s.kC) - pr * s.did;
+      const dd = 0.36 * pr * s.did - 0.42 * s.did;
+      const prevMod = s.t % 3.0;
+      s.caud = Math.max(0, Math.min(400, s.caud + dt * dc));
+      s.did = Math.max(0, Math.min(250, s.did + dt * dd));
+      s.t += dt;
+      if (s.immig && (s.t % 3.0) < prevMod) { s.caud += 1.5; s.did += 1.0; }
+      const ph = s.caud < 3 ? "Crash" : (dd > 0.2 && dc < 0 ? "Overshoot" : "Cycle");
+      pushHistory(s, s.t, [s.caud, s.did, s.refuge * 100], dc / prev, ph);
+    }
+    syncAgentsM2(s);
+  } else if (id === "M3") {
+    const dt = s.dt, prevS = Math.max(0.05, s.S);
+    const muS = s.mu * (s.nut / (18 + s.nut)), muR = 0.84 * muS;
+    const ads = s.phi * s.S * s.V, lys = s.lys * s.I, mf = s.mut * s.S;
+    const ds = muS * s.S - ads - mf;
+    s.S = Math.max(0.01, Math.min(500, s.S + dt * ds));
+    s.I = Math.max(0, Math.min(500, s.I + dt * (ads - lys)));
+    s.R = Math.max(0, Math.min(500, s.R + dt * (muR * s.R + mf)));
+    s.V = Math.max(0, Math.min(8000, s.V + dt * (s.burst * lys - ads - s.dec * s.V)));
+    s.nut = Math.max(0.5, Math.min(150, s.nut + dt * (-0.18 * (muS * s.S + muR * s.R) + 0.08 * (100 - s.nut))));
+    s.t += dt;
+    const nl = s.lawn.slice(), np = s.pgrid.slice(), side = s.side;
+    for (let r = 0; r < side; r++) {
+      for (let c = 0; c < side; c++) {
+        const idx = r * side + c, b = s.lawn[idx], v = s.pgrid[idx];
+        let lv = 0;
+        if (r > 0) lv += s.pgrid[(r - 1) * side + c] - v;
+        if (r + 1 < side) lv += s.pgrid[(r + 1) * side + c] - v;
+        if (c > 0) lv += s.pgrid[r * side + c - 1] - v;
+        if (c + 1 < side) lv += s.pgrid[r * side + c + 1] - v;
+        const inf = 0.055 * b * v;
+        nl[idx] = Math.max(0.02, Math.min(1.0, b + dt * (0.32 * b * (1 - b) - inf)));
+        np[idx] = Math.max(0, Math.min(60, v + dt * (14 * inf - 0.18 * v + 0.55 * lv)));
+      }
+    }
+    s.lawn = nl; s.pgrid = np;
+    const ph = lys > 4 && ds < 0 ? "Overshoot" : (s.S < 4 && s.R > 20 ? "Diauxic" : (s.S < 4 ? "Crash" : "Exp"));
+    pushHistory(s, s.t, [s.S, s.I, s.R, s.V * 0.1], ds / prevS, ph);
+  } else if (id === "T1") {
+    const dt = s.dt, nKill = Math.round(s.h * 64);
+    s.patches.forEach((p, i) => { p.destroyed = i < nKill; if (p.destroyed) p.occupied = false; });
+    const dp = s.c * s.detP * (1 - s.h - s.detP) - s.e * s.detP;
+    s.detP = Math.max(0, Math.min(1 - s.h, s.detP + dt * dp));
+    const stOcc = s.patches.filter(p => !p.destroyed && p.occupied).length / 64;
+    const pCol = 1 - Math.exp(-s.c * stOcc * dt), pExt = 1 - Math.exp(-s.e * dt);
+    s.patches.forEach(p => {
+      if (p.destroyed) p.occupied = false;
+      else if (p.occupied) { if (s.rng.nextF64() < pExt) p.occupied = false; }
+      else if (s.rng.nextF64() < pCol) p.occupied = true;
+    });
+    s.t += dt;
+    const pStar = Math.max(0, (1 - s.h) - s.e / Math.max(0.01, s.c));
+    const hCrit = Math.max(0, 1 - s.e / Math.max(0.01, s.c));
+    const ph = s.h >= hCrit ? "Death" : (Math.abs(s.detP - pStar) < 0.02 ? "Stat" : "Decel");
+    pushHistory(s, s.t, [(s.patches.filter(p => !p.destroyed && p.occupied).length / 64) * 100, s.detP * 100, pStar * 100], dp, ph);
+  } else if (id === "T2") {
+    const prev = s.n;
+    const next = s.ricker ? prev * Math.exp(s.r * (1 - prev / s.k)) : Math.max(0, prev * (1 + s.r * (1 - prev / s.k)));
+    const deriv = s.ricker ? Math.abs((1 - s.r * prev / s.k) * Math.exp(s.r * (1 - prev / s.k))) : Math.abs(1 + s.r - (2 * s.r * prev) / s.k);
+    s.lyapSum += Math.log(Math.max(1e-9, deriv));
+    s.lyapCnt += 1;
+    s.cobweb.push([prev, next], [next, next]);
+    if (s.cobweb.length > 140) s.cobweb.splice(0, 20);
+    s.n = Math.max(0, Math.min(s.k * 4, next));
+    s.t += 1;
+    const lyap = s.lyapSum / s.lyapCnt;
+    const ph = lyap > 0.01 || s.r > 2.57 ? "Chaos" : (s.r > 2.0 ? "Cycle" : (Math.abs(s.n - s.k) < 0.8 ? "Stat" : "Exp"));
+    pushHistory(s, s.t, [s.n, s.k, lyap * 50], prev > 0.01 && s.n > 0.01 ? Math.log(s.n / prev) : 0, ph);
+  } else if (id === "T3") {
+    const kD = Math.max(1, Math.min(12, Math.round(s.demes)));
+    while (s.freqs.length < kD) { s.freqs.push(s.p0); s.tracks.push([s.p0]); }
+    s.freqs.length = kD; s.tracks.length = kD;
+    const pBarPrev = s.freqs.reduce((a, b) => a + b, 0) / kD;
+    const twoN = Math.max(4, Math.round(2 * s.ne));
+    for (let i = 0; i < kD; i++) {
+      const p = s.freqs[i], q = 1 - p;
+      const wBar = Math.max(1e-9, p * p * s.wAA + 2 * p * q * s.wAa + q * q * s.waa);
+      const pSel = (p * p * s.wAA + p * q * s.wAa) / wBar;
+      const pMut = pSel * (1 - s.mu) + (1 - pSel) * s.nu;
+      const pMig = (1 - s.m) * pMut + s.m * pBarPrev;
+      const pn = s.rng.binomial(twoN, pMig) / twoN;
+      s.freqs[i] = pn;
+      s.tracks[i].push(pn);
+      if (s.tracks[i].length > 800) s.tracks[i].splice(0, 100);
+    }
+    s.t += 1;
+    const pBar = s.freqs.reduce((a, b) => a + b, 0) / kD;
+    const hS = s.freqs.reduce((a, p) => a + 2 * p * (1 - p), 0) / kD;
+    const hT = 2 * pBar * (1 - pBar);
+    const fst = hT > 1e-6 ? Math.max(0, (hT - hS) / hT) : 0;
+    const fixed = s.freqs.every(p => p <= 0.001 || p >= 0.999);
+    pushHistory(s, s.t, [pBar, hS, hT, fst], pBar - pBarPrev, fixed ? "Fixed" : "Drift");
+  } else if (id === "T4") {
+    stepKingman(s);
+  } else if (id === "T5") {
+    const kD = Math.max(1, Math.min(14, Math.round(s.demesN)));
+    while (s.demes.length < kD) {
+      const x = s.rng.range(0.16, 0.34), y = s.rng.range(0.16, 0.34), w = evalLandscapeFitness(s, x, y);
+      s.demes.push({ x, y, w, trail: [[x, y, w]] });
+    }
+    s.demes.length = kD;
+    const prevW = s.demes.reduce((a, d) => a + d.w, 0) / kD;
+    let wSum = 0, mx = 0, my = 0;
+    s.demes.forEach(d => { const w3 = Math.pow(d.w, 3); wSum += w3; mx += w3 * d.x; my += w3 * d.y; });
+    if (wSum > 1e-9) { mx /= wSum; my /= wSum; }
+    const drift = 0.22 / Math.sqrt(2 * Math.max(4, s.ne));
+    const eps = 0.004;
+    s.demes.forEach(d => {
+      const gx = (evalLandscapeFitness(s, Math.min(1, d.x + eps), d.y) - evalLandscapeFitness(s, Math.max(0, d.x - eps), d.y)) / (2 * eps);
+      const gy = (evalLandscapeFitness(s, d.x, Math.min(1, d.y + eps)) - evalLandscapeFitness(s, d.x, Math.max(0, d.y - eps))) / (2 * eps);
+      const wc = Math.max(0.1, d.w);
+      const nx = Math.min(0.97, Math.max(0.03, d.x + s.sel * 0.035 * (gx / wc) + s.m * (mx - d.x) + drift * s.rng.normal()));
+      const ny = Math.min(0.97, Math.max(0.03, d.y + s.sel * 0.035 * (gy / wc) + s.m * (my - d.y) + drift * s.rng.normal()));
+      const nw = evalLandscapeFitness(s, nx, ny);
+      d.x = nx; d.y = ny; d.w = nw;
+      d.trail.push([nx, ny, nw]);
+      if (d.trail.length > 85) d.trail.splice(0, 15);
+    });
+    s.t += 1;
+    const meanW = s.demes.reduce((a, d) => a + d.w, 0) / kD;
+    const maxW = Math.max(...s.demes.map(d => d.w));
+    const fracG = (100 * s.demes.filter(d => Math.hypot(d.x - 0.76, d.y - 0.74) < 0.22).length) / kD;
+    const ph = fracG >= 85 ? "Stat" : (fracG >= 12 ? "Exp" : (s.ne <= 45 ? "Drift" : "Decel"));
+    pushHistory(s, s.t, [meanW, maxW, fracG], meanW - prevW, ph);
+  } else if (id === "T6") {
+    recomputeEigenT6(s);
+    const pr = MATRIX_PRESETS[s.presetIdx] || MATRIX_PRESETS[0];
+    const k = s.mat.length;
+    if (s.nVec.length !== k) s.nVec = pr.initN.slice();
+    const prevTot = Math.max(1e-6, s.nVec.reduce((a, b) => a + b, 0));
+    const bh = s.densityReg ? (1 / (1 + prevTot / Math.max(50, s.recK))) : 1;
+    const nextN = new Array(k).fill(0);
+    for (let r = 0; r < k; r++) {
+      for (let c = 0; c < k; c++) {
+        const rate = (r === 0 && !(pr.seedStasis && c === 0)) ? s.mat[r][c] * bh : s.mat[r][c];
+        nextN[r] += rate * s.nVec[c];
+      }
+    }
+    let newTot = nextN.reduce((a, b) => a + b, 0);
+    s.realizedLam = newTot / prevTot;
+    if (newTot > 1e7) {
+      const sc = 1e7 / newTot;
+      for (let i = 0; i < k; i++) nextN[i] *= sc;
+      newTot = 1e7;
+    }
+    s.nVec = nextN;
+    s.t += 1;
+    const l1Dev = s.nVec.reduce((acc, ni, i) => acc + Math.abs(ni / Math.max(1e-9, newTot) - (s.w[i] || 0)), 0);
+    const ph = l1Dev > 0.14 ? "Decel" : (s.densityReg && Math.abs(s.realizedLam - 1) < 0.015 ? "Stat" : (s.lam > 1.005 ? "Exp" : (s.lam < 0.995 ? "Death" : "Stat")));
+    const adStart = Math.floor((k * 3) / 5);
+    pushHistory(s, s.t, [newTot, s.nVec[0], s.nVec.slice(adStart).reduce((a, b) => a + b, 0), s.lam * 100], Math.log(Math.max(1e-9, s.realizedLam)), ph);
+  }
+}
+
+/* =========================================================================
+   6. EMPIRICAL POPGEN, HAPLOTYPE NETWORK, SKYLINE MCMC & SLIDING-WINDOW ENGINE
+   ========================================================================= */
+function parseAlignmentText(raw) {
+  const txt = (raw || "").trim();
+  if (!txt) throw new Error("Alignment text is empty.");
+  const out = [];
+  if (txt.startsWith(">")) {
+    let hdr = null, seq = "";
+    txt.split(/\r?\n/).forEach(line => {
+      const t = line.trim();
+      if (!t || t.startsWith(";")) return;
+      if (t.startsWith(">")) {
+        if (hdr !== null) out.push(makeSeqRec(hdr, seq));
+        hdr = t.slice(1);
+        seq = "";
+      } else seq += t;
+    });
+    if (hdr !== null) out.push(makeSeqRec(hdr, seq));
+  } else {
+    const lines = txt.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    const first = lines[0].split(/\s+/);
+    const nTax = parseInt(first[0], 10);
+    if (isNaN(nTax) || lines.length < nTax + 1) throw new Error("Unrecognized FASTA or PHYLIP header.");
+    for (let i = 1; i <= nTax; i++) {
+      const parts = lines[i].split(/\s+/);
+      out.push(makeSeqRec(parts[0], parts.slice(1).join("")));
+    }
+  }
+  if (out.length < 2) throw new Error("At least 2 aligned DNA sequences are required.");
+  const L = out[0].seq.length;
+  if (L === 0) throw new Error("Sequence length is 0.");
+  out.forEach(r => {
+    if (r.seq.length !== L) throw new Error("Sequence '" + r.id + "' has length " + r.seq.length + " vs expected " + L + ".");
+  });
+  return out;
+}
+
+function makeSeqRec(header, rawSeq) {
+  let id = header.trim(), pop = "Deme1";
+  if (id.includes("|")) {
+    const sp = id.split("|");
+    id = sp[0].trim();
+    pop = sp[1].trim().replace(/^Pop=/i, "") || "Deme1";
+  } else if (/Pop=([\w-]+)/i.test(id)) {
+    pop = id.match(/Pop=([\w-]+)/i)[1];
+    id = id.split(/\s+/)[0];
+  } else {
+    id = id.split(/\s+/)[0];
+    if (id.includes("_")) pop = id.split("_")[0];
+  }
+  const seq = rawSeq.replace(/\s+/g, "").toUpperCase().replace(/U/g, "T").replace(/[^ACGT-]/g, "N");
+  return { id, pop, seq };
+}
+
+function isACGT(ch) { return ch === "A" || ch === "C" || ch === "G" || ch === "T"; }
+
+function erfApprox(x) {
+  const s = x < 0 ? -1 : 1;
+  const ax = Math.abs(x);
+  const t = 1.0 / (1.0 + 0.3275911 * ax);
+  const y = 1.0 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-ax * ax);
+  return s * y;
+}
+function normalTwoTailP(z) {
+  return Math.max(0, Math.min(1, 1 - Math.abs(erfApprox(Math.abs(z) / Math.SQRT2))));
+}
+
+function computePopGenStats(seqs, gapMode) {
+  const n = seqs.length, L = seqs[0].seq.length;
+  let gc = 0, acgt = 0;
+  seqs.forEach(r => {
+    for (let i = 0; i < L; i++) {
+      const ch = r.seq[i];
+      if (isACGT(ch)) { acgt++; if (ch === "G" || ch === "C") gc++; }
+    }
+  });
+
+  const completeCols = [];
+  const polySites = [];
+  let S = 0, parsInf = 0, singletons = 0;
+  for (let c = 0; c < L; c++) {
+    let missing = false;
+    const counts = { A: 0, C: 0, G: 0, T: 0 };
+    for (let i = 0; i < n; i++) {
+      const ch = seqs[i].seq[c];
+      if (isACGT(ch)) counts[ch]++; else missing = true;
+    }
+    if (!missing) completeCols.push(c);
+    if (gapMode === "complete" && missing) continue;
+    const alleles = Object.entries(counts).filter(kv => kv[1] > 0).sort((a, b) => b[1] - a[1]);
+    if (alleles.length >= 2) {
+      S++;
+      const sing = alleles.some(kv => kv[1] === 1);
+      const pinf = alleles[1][1] >= 2;
+      if (sing) singletons++;
+      if (pinf) parsInf++;
+      polySites.push({ col1: c + 1, alleles, sing, pinf });
+    }
+  }
+  const Leff = gapMode === "complete" ? completeCols.length : L;
+
+  // Haplotypes
+  const hapCounts = new Map();
+  seqs.forEach(r => {
+    const key = completeCols.length ? completeCols.map(c => r.seq[c]).join("") : r.seq;
+    hapCounts.set(key, (hapCounts.get(key) || 0) + 1);
+  });
+  let sumP2 = 0;
+  hapCounts.forEach(cnt => { const p = cnt / n; sumP2 += p * p; });
+  const Hd = (n / (n - 1)) * (1 - sumP2);
+
+  // Pairwise differences & Mismatch
+  const nPairs = (n * (n - 1)) / 2;
+  let sumDiffs = 0, sumPi = 0;
+  const histMap = new Map();
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      let d = 0, comp = 0;
+      if (gapMode === "complete") {
+        completeCols.forEach(c => { comp++; if (seqs[i].seq[c] !== seqs[j].seq[c]) d++; });
+      } else {
+        for (let c = 0; c < L; c++) {
+          const bi = seqs[i].seq[c], bj = seqs[j].seq[c];
+          if (isACGT(bi) && isACGT(bj)) { comp++; if (bi !== bj) d++; }
+        }
+      }
+      sumDiffs += d;
+      if (comp > 0) sumPi += d / comp;
+      histMap.set(d, (histMap.get(d) || 0) + 1);
+    }
+  }
+  const kHat = sumDiffs / nPairs;
+  const pi = sumPi / nPairs;
+
+  let maxD = 0;
+  histMap.forEach((_, d) => { if (d > maxD) maxD = d; });
+  const mismatch = [];
+  let prevF = 0, rag = 0;
+  for (let d = 0; d <= maxD; d++) {
+    const cnt = histMap.get(d) || 0;
+    mismatch.push([d, cnt]);
+    const f = cnt / nPairs;
+    rag += (f - prevF) * (f - prevF);
+    prevF = f;
+  }
+  rag += prevF * prevF;
+
+  let a1 = 0, a2 = 0;
+  for (let i = 1; i < n; i++) { a1 += 1 / i; a2 += 1 / (i * i); }
+  const thetaLocus = a1 > 0 ? S / a1 : 0;
+  const thetaSite = Leff > 0 ? thetaLocus / Leff : 0;
+
+  let tajimaD = null, pNorm = null, fuLiD = null, fuLiF = null;
+  if (n >= 4 && S > 0) {
+    const b1 = (n + 1) / (3 * (n - 1));
+    const b2 = (2 * (n * n + n + 3)) / (9 * n * (n - 1));
+    const c1 = b1 - 1 / a1;
+    const c2 = b2 - (n + 2) / (a1 * n) + a2 / (a1 * a1);
+    const e1 = c1 / a1, e2 = c2 / (a1 * a1 + a2);
+    tajimaD = (kHat - thetaLocus) / Math.sqrt(Math.max(1e-12, e1 * S + e2 * S * (S - 1)));
+    pNorm = normalTwoTailP(tajimaD);
+
+    const an1 = a1 + 1 / n;
+    const cn = 2 * (n * a1 - 2 * (n - 1)) / ((n - 1) * (n - 2));
+    const dn = cn + (n - 2) / ((n - 1) * (n - 1)) + (2 / (n - 1)) * (1.5 - (2 * an1 - 3) / (n - 2) - 1 / n);
+    const vd = (Math.pow(n / (n - 1), 2) * a2 + a1 * a1 * dn - (2 * n * a1 * (a1 + 1)) / Math.pow(n - 1, 2)) / (a1 * a1 + a2);
+    const ud = (n / (n - 1)) * (a1 - n / (n - 1)) - vd;
+    fuLiD = ((n / (n - 1)) * S - a1 * singletons) / Math.sqrt(Math.max(1e-12, ud * S + vd * S * S));
+    fuLiF = (kHat - ((n - 1) / n) * singletons) / Math.sqrt(Math.max(1e-12, Math.max(0.02, ud) * S + Math.max(0.005, vd) * S * S));
+  }
+
+  // Multi-population Hudson F_ST
+  const popMap = new Map();
+  seqs.forEach((r, idx) => {
+    if (!popMap.has(r.pop)) popMap.set(r.pop, []);
+    popMap.get(r.pop).push(idx);
+  });
+  const popNames = Array.from(popMap.keys());
+  const pairPi = (i, j) => {
+    let d = 0, cp = 0;
+    for (let c = 0; c < L; c++) {
+      const bi = seqs[i].seq[c], bj = seqs[j].seq[c];
+      if (isACGT(bi) && isACGT(bj)) { cp++; if (bi !== bj) d++; }
+    }
+    return cp > 0 ? d / cp : 0;
+  };
+  const withinPi = arr => {
+    if (arr.length < 2) return 0;
+    let s = 0, cnt = 0;
+    for (let a = 0; a < arr.length; a++) for (let b = a + 1; b < arr.length; b++) { s += pairPi(arr[a], arr[b]); cnt++; }
+    return s / Math.max(1, cnt);
+  };
+  const popDiv = [];
+  for (let a = 0; a < popNames.length; a++) {
+    for (let b = a + 1; b < popNames.length; b++) {
+      const ia = popMap.get(popNames[a]), ib = popMap.get(popNames[b]);
+      const piA = withinPi(ia), piB = withinPi(ib);
+      let sxy = 0, cxy = 0;
+      ia.forEach(x => ib.forEach(y => { sxy += pairPi(x, y); cxy++; }));
+      const dxy = sxy / Math.max(1, cxy);
+      const piW = 0.5 * (piA + piB);
+      const fst = dxy > 1e-9 ? Math.max(0, Math.min(1, (dxy - piW) / dxy)) : 0;
+      const nm = fst > 1e-4 && fst < 0.9999 ? (1 - fst) / (4 * fst) : (fst <= 1e-4 ? 999.9 : 0);
+      popDiv.push({ popA: popNames[a], popB: popNames[b], piA, piB, dxy, da: Math.max(0, dxy - piW), fst, nm });
+    }
+  }
+
+  // LD r^2 & |D'|
+  const infSites = polySites.filter(p => p.alleles.length === 2 && p.pinf).slice(0, 16);
+  const ldPairs = [];
+  for (let i = 0; i < infSites.length; i++) {
+    for (let j = i + 1; j < infSites.length; j++) {
+      const ca = infSites[i].col1 - 1, cb = infSites[j].col1 - 1;
+      const ma = infSites[i].alleles[0][0], mb = infSites[j].alleles[0][0];
+      let val = 0, na = 0, nb = 0, nab = 0;
+      seqs.forEach(r => {
+        if (isACGT(r.seq[ca]) && isACGT(r.seq[cb])) {
+          val++;
+          const ia = r.seq[ca] === ma, ib = r.seq[cb] === mb;
+          if (ia) na++; if (ib) nb++; if (ia && ib) nab++;
+        }
+      });
+      if (val >= 4) {
+        const pa = na / val, pb = nb / val, pab = nab / val;
+        const D = pab - pa * pb;
+        const den = pa * (1 - pa) * pb * (1 - pb);
+        const r2 = den > 1e-9 ? Math.min(1, (D * D) / den) : 0;
+        const dmax = D >= 0 ? Math.min(pa * (1 - pb), (1 - pa) * pb) : Math.min(pa * pb, (1 - pa) * (1 - pb));
+        const dp = dmax > 1e-9 ? Math.min(1, Math.abs(D) / dmax) : 0;
+        ldPairs.push({ a: ca + 1, b: cb + 1, dist: cb - ca, r2, dp });
+      }
+    }
+  }
+
+  return {
+    n, L, Leff, S, parsInf, singletons, K: hapCounts.size, Hd, kHat, pi,
+    thetaLocus, thetaSite, tajimaD, pNorm, fuLiD, fuLiF, mismatch, rag,
+    gcPct: acgt > 0 ? (100 * gc) / acgt : 0, popDiv, ldPairs, completeCols
+  };
+}
+
+/* Haplotype Network Builder: Bandelt MJ, Kruskal MSN & TCS 95% */
+function hammingStr(a, b) {
+  let d = 0;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) d++;
+  return d;
+}
+
+function buildMsnLinks(seqArr, cutoff) {
+  const k = seqArr.length;
+  if (k <= 1) return [];
+  const buckets = new Map();
+  for (let i = 0; i < k; i++) {
+    for (let j = i + 1; j < k; j++) {
+      const d = hammingStr(seqArr[i], seqArr[j]);
+      if (cutoff !== null && d > cutoff) continue;
+      if (!buckets.has(d)) buckets.set(d, []);
+      buckets.get(d).push([i, j]);
+    }
+  }
+  const parent = Array.from({ length: k }, (_, i) => i);
+  const find = x => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+  const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[rb] = ra; };
+  const edges = [];
+  Array.from(buckets.keys()).sort((a, b) => a - b).forEach(d => {
+    const pairs = buckets.get(d).filter(([u, v]) => find(u) !== find(v));
+    pairs.forEach(([u, v]) => edges.push([u, v, d]));
+    pairs.forEach(([u, v]) => union(u, v));
+  });
+  return edges;
+}
+
+function buildHaplotypeNetwork(seqs, alg, eps) {
+  const L = seqs[0].seq.length;
+  const cols = [];
+  for (let c = 0; c < L; c++) if (seqs.every(r => isACGT(r.seq[c]))) cols.push(c);
+  const pops = Array.from(new Set(seqs.map(s => s.pop))).sort();
+  const map = new Map();
+  seqs.forEach(r => {
+    const key = cols.map(c => r.seq[c]).join("");
+    if (!map.has(key)) map.set(key, { members: [], popCounts: new Array(pops.length).fill(0) });
+    const ent = map.get(key);
+    ent.members.push(r.id);
+    ent.popCounts[pops.indexOf(r.pop)]++;
+  });
+  const ordered = Array.from(map.entries()).sort((a, b) => b[1].members.length - a[1].members.length);
+  const nodes = ordered.map(([sq, info], idx) => ({
+    id: idx, label: "H" + (idx + 1), mv: false, count: info.members.length,
+    members: info.members, popCounts: info.popCounts, seq: sq, x: 0.5, y: 0.5
+  }));
+  const tcsLim = Math.max(2, Math.floor(Math.sqrt(cols.length * 0.32)));
+
+  let rawEdges = [];
+  if (alg === "MSN") {
+    rawEdges = buildMsnLinks(nodes.map(n => n.seq), null);
+  } else if (alg === "TCS") {
+    rawEdges = buildMsnLinks(nodes.map(n => n.seq), tcsLim);
+  } else {
+    const known = new Set(nodes.map(n => n.seq));
+    let mvCount = 0;
+    for (let it = 0; it < 3; it++) {
+      const sqs = nodes.map(n => n.seq);
+      const base = buildMsnLinks(sqs, null);
+      const adj = Array.from({ length: nodes.length }, () => []);
+      base.forEach(([u, v]) => { adj[u].push(v); adj[v].push(u); });
+      const cands = [];
+      for (let u = 0; u < nodes.length; u++) {
+        const nb = adj[u];
+        for (let i = 0; i < nb.length; i++) {
+          for (let j = i + 1; j < nb.length; j++) {
+            const v = nb[i], w = nb[j];
+            let med = "";
+            for (let p = 0; p < sqs[u].length; p++) {
+              const a = sqs[u][p], b = sqs[v][p], c = sqs[w][p];
+              med += (a === b || a === c) ? a : (b === c ? b : a);
+            }
+            if (!known.has(med)) {
+              const pSum = hammingStr(sqs[u], sqs[v]) + hammingStr(sqs[u], sqs[w]) + hammingStr(sqs[v], sqs[w]);
+              const sCost = hammingStr(med, sqs[u]) + hammingStr(med, sqs[v]) + hammingStr(med, sqs[w]);
+              if (2 * sCost < pSum) cands.push([sCost, med]);
+            }
+          }
+        }
+      }
+      if (!cands.length) break;
+      cands.sort((a, b) => a[0] - b[0]);
+      const minC = cands[0][0];
+      cands.forEach(([cost, med]) => {
+        if (cost <= minC + eps && !known.has(med) && mvCount < 12) {
+          known.add(med);
+          mvCount++;
+          nodes.push({ id: nodes.length, label: "mv" + mvCount, mv: true, count: 0, members: [], popCounts: new Array(pops.length).fill(0), seq: med, x: 0.5, y: 0.5 });
+        }
+      });
+    }
+    while (true) {
+      const sqs = nodes.map(n => n.seq);
+      const links = buildMsnLinks(sqs, null);
+      if (eps > 0 && links.length) {
+        const minD = Math.min(...links.map(l => l[2]));
+        const seen = new Set(links.map(([u, v]) => Math.min(u, v) + ":" + Math.max(u, v)));
+        for (let u = 0; u < nodes.length; u++) {
+          for (let v = u + 1; v < nodes.length; v++) {
+            const d = hammingStr(sqs[u], sqs[v]);
+            if (d <= minD + eps && !seen.has(u + ":" + v)) links.push([u, v, d]);
+          }
+        }
+      }
+      const deg = new Array(nodes.length).fill(0);
+      links.forEach(([u, v]) => { deg[u]++; deg[v]++; });
+      const obs = nodes.findIndex((nd, idx) => nd.mv && deg[idx] <= 2);
+      if (obs >= 0) {
+        nodes.splice(obs, 1);
+        nodes.forEach((nd, idx) => { nd.id = idx; });
+      } else {
+        rawEdges = links;
+        break;
+      }
+    }
+  }
+
+  const edges = rawEdges.map(([u, v, steps]) => {
+    const muts = [];
+    for (let i = 0; i < nodes[u].seq.length; i++) {
+      if (nodes[u].seq[i] !== nodes[v].seq[i]) muts.push(nodes[u].seq[i] + (cols[i] + 1) + nodes[v].seq[i]);
+    }
+    return { u, v, steps, muts };
+  });
+
+  const net = { alg, eps, tcsLim, pops, nodes, edges };
+  relaxHaplotypeLayout(net, 160);
+  return net;
+}
+
+function relaxHaplotypeLayout(net, iters) {
+  const n = net.nodes.length;
+  if (n <= 1) return;
+  net.nodes.forEach((nd, i) => {
+    const ang = (2 * Math.PI * i) / n;
+    nd.x = 0.5 + 0.30 * Math.cos(ang);
+    nd.y = 0.5 + 0.30 * Math.sin(ang);
+  });
+  const k = Math.max(0.09, 0.52 / Math.sqrt(n));
+  for (let it = 0; it < iters; it++) {
+    const temp = 0.075 * Math.max(0.08, 1 - it / iters);
+    const dxArr = new Array(n).fill(0), dyArr = new Array(n).fill(0);
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const dx = net.nodes[i].x - net.nodes[j].x, dy = net.nodes[i].y - net.nodes[j].y;
+        const dist = Math.max(0.02, Math.hypot(dx, dy));
+        const rep = (k * k) / dist;
+        dxArr[i] += (dx / dist) * rep; dyArr[i] += (dy / dist) * rep;
+        dxArr[j] -= (dx / dist) * rep; dyArr[j] -= (dy / dist) * rep;
+      }
+    }
+    net.edges.forEach(e => {
+      const dx = net.nodes[e.u].x - net.nodes[e.v].x, dy = net.nodes[e.u].y - net.nodes[e.v].y;
+      const dist = Math.max(0.015, Math.hypot(dx, dy));
+      const ideal = k * (0.75 + 0.20 * Math.min(6, e.steps));
+      const att = (dist - ideal) * 0.45;
+      dxArr[e.u] -= (dx / dist) * att; dyArr[e.u] -= (dy / dist) * att;
+      dxArr[e.v] += (dx / dist) * att; dyArr[e.v] += (dy / dist) * att;
+    });
+    for (let i = 0; i < n; i++) {
+      dxArr[i] += 0.035 * (0.5 - net.nodes[i].x);
+      dyArr[i] += 0.035 * (0.5 - net.nodes[i].y);
+      const mag = Math.max(1e-9, Math.hypot(dxArr[i], dyArr[i]));
+      const step = Math.min(temp, mag);
+      net.nodes[i].x = Math.min(0.88, Math.max(0.12, net.nodes[i].x + (dxArr[i] / mag) * step));
+      net.nodes[i].y = Math.min(0.88, Math.max(0.12, net.nodes[i].y + (dyArr[i] / mag) * step));
+    }
+  }
+}
+
+/* Bayesian Skyline MCMC + Generalized Skyline + Rogers-Harpending Expansion */
+function rogersHarpendingWave(theta0, theta1, tau, maxD) {
+  const t0 = Math.max(1e-4, theta0), t1 = Math.max(t0 + 1e-4, theta1), tp = Math.max(0, tau);
+  const q0 = t0 / (1 + t0), q1 = t1 / (1 + t1);
+  const f0 = [], fq1 = [];
+  let p0 = 1, p1 = 1;
+  for (let i = 0; i <= maxD; i++) {
+    f0.push(p0 / (1 + t0)); p0 *= q0;
+    fq1.push(p1 / (1 + t1)); p1 *= q1;
+  }
+  const damp = Math.exp(-tp * (1 + 1 / t1));
+  const pois = [1];
+  for (let j = 1; j <= maxD; j++) pois.push((pois[j - 1] * tp) / j);
+  const out = [];
+  let sum = 0;
+  for (let i = 0; i <= maxD; i++) {
+    let tr = 0;
+    for (let j = 0; j <= i; j++) tr += pois[j] * (f0[i - j] - fq1[i - j]);
+    const v = Math.max(0, fq1[i] + damp * tr);
+    out.push(v); sum += v;
+  }
+  return sum > 1e-12 ? out.map(v => v / sum) : out;
+}
+
+function computeSkylineAndExpansion(seqs, mismatch, mGroupsReq, mcmcSteps, clockMu, genTime) {
+  const n = seqs.length;
+  if (n < 4) return null;
+  const L = seqs[0].seq.length;
+  const minRes = 1.0 / (Math.max(50, L) * 8.0);
+  const tipD = Array.from({ length: n }, () => new Array(n).fill(0));
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      let df = 0, cp = 0;
+      for (let c = 0; c < L; c++) {
+        if (isACGT(seqs[i].seq[c]) && isACGT(seqs[j].seq[c])) { cp++; if (seqs[i].seq[c] !== seqs[j].seq[c]) df++; }
+      }
+      const p = cp > 0 ? Math.min(0.74, df / cp) : 0;
+      const djc = Math.max(0, -0.75 * Math.log(Math.max(1e-6, 1 - (4 / 3) * p)));
+      tipD[i][j] = tipD[j][i] = djc;
+    }
+  }
+  const clusters = seqs.map((_, i) => ({ sz: 1, members: [i] }));
+  const heights = [];
+  let lastH = 0;
+  while (clusters.length > 1) {
+    let bestA = 0, bestB = 1, bestDist = Infinity;
+    for (let a = 0; a < clusters.length; a++) {
+      for (let b = a + 1; b < clusters.length; b++) {
+        let s = 0;
+        clusters[a].members.forEach(ia => clusters[b].members.forEach(ib => { s += tipD[ia][ib]; }));
+        const avg = s / (clusters[a].sz * clusters[b].sz);
+        if (avg < bestDist) { bestDist = avg; bestA = a; bestB = b; }
+      }
+    }
+    const nh = Math.max(lastH + minRes, 0.5 * bestDist);
+    lastH = nh;
+    heights.push(nh);
+    const cb = clusters.splice(bestB, 1)[0];
+    clusters[bestA].sz += cb.sz;
+    clusters[bestA].members.push(...cb.members);
+  }
+
+  const intervals = [];
+  let tPrev = 0;
+  heights.forEach((tEnd, idx) => {
+    const k = n - idx, dur = Math.max(minRes * 0.5, tEnd - tPrev);
+    const binom = 0.5 * k * (k - 1);
+    intervals.push({ idx: idx + 1, k, tStart: tPrev, tEnd, dur, classicTheta: Math.max(1e-8, binom * dur) });
+    tPrev = tEnd;
+  });
+  const mIv = intervals.length;
+  const tmrcaSubs = intervals[mIv - 1].tEnd;
+  const mu = Math.max(1e-12, clockMu);
+
+  // Generalized Skyline AICc
+  const maxDur = Math.max(...intervals.map(iv => iv.dur));
+  let genThetas = intervals.map(iv => iv.classicTheta), bestAicc = Infinity;
+  for (let st = 0; st <= 12; st++) {
+    const eps = maxDur * (st / 20);
+    const grps = [];
+    let cur = [], cd = 0;
+    intervals.forEach((iv, i) => {
+      cur.push(i); cd += iv.dur;
+      if (cd >= eps || i + 1 === mIv) { grps.push(cur); cur = []; cd = 0; }
+    });
+    const ass = new Array(mIv).fill(0);
+    let ll = 0;
+    grps.forEach(g => {
+      let w = 0;
+      g.forEach(i => { w += 0.5 * intervals[i].k * (intervals[i].k - 1) * intervals[i].dur; });
+      const th = Math.max(1e-8, w / g.length);
+      g.forEach(i => {
+        ass[i] = th;
+        const bin = 0.5 * intervals[i].k * (intervals[i].k - 1);
+        ll += Math.log(bin / th) - (bin * intervals[i].dur) / th;
+      });
+    });
+    const kp = grps.length;
+    const pen = (mIv - kp - 1 > 0.5) ? (2 * kp + (2 * kp * (kp + 1)) / (mIv - kp - 1)) : (2 * kp + 80);
+    const aicc = -2 * ll + pen;
+    if (aicc < bestAicc) { bestAicc = aicc; genThetas = ass; }
+  }
+
+  // Metropolis-Hastings MCMC Bayesian Skyline
+  const mG = Math.max(1, Math.min(mIv, Math.min(8, mGroupsReq)));
+  const gSizes = new Array(mG).fill(Math.floor(mIv / mG));
+  for (let g = 0; g < (mIv % mG); g++) gSizes[g]++;
+  const gThetas = [];
+  let curIdx = 0;
+  for (let g = 0; g < mG; g++) {
+    const slice = genThetas.slice(curIdx, curIdx + gSizes[g]);
+    gThetas.push(Math.max(1e-6, slice.reduce((a, b) => a + b, 0) / slice.length));
+    curIdx += gSizes[g];
+  }
+  const logPost = () => {
+    let ll = 0, p = 0;
+    for (let g = 0; g < mG; g++) {
+      const th = Math.max(1e-10, gThetas[g]);
+      for (let c = 0; c < gSizes[g]; c++) {
+        const iv = intervals[p++];
+        const bin = 0.5 * iv.k * (iv.k - 1);
+        ll += Math.log(bin / th) - (bin * iv.dur) / th;
+      }
+    }
+    let lp = -Math.log(Math.max(1e-10, gThetas[0]));
+    for (let g = 1; g < mG; g++) lp += -Math.log(gThetas[g - 1]) - gThetas[g] / gThetas[g - 1];
+    return ll + lp;
+  };
+
+  let curLp = logPost();
+  const rng = new SimRng(20051185);
+  const iters = Math.max(400, Math.min(6000, mcmcSteps));
+  const burn = Math.floor(iters / 4), stride = Math.max(1, Math.floor((iters - burn) / 140));
+  const gridN = 48;
+  const gridTimes = Array.from({ length: gridN }, (_, i) => tmrcaSubs * (i / (gridN - 1)));
+  const samples = Array.from({ length: gridN }, () => []);
+  let acc = 0;
+
+  for (let it = 0; it < iters; it++) {
+    if (mG === 1 || rng.nextF64() < 0.78) {
+      const g = rng.genIndex(mG), oldV = gThetas[g], d = rng.normal() * 0.32;
+      gThetas[g] = Math.max(1e-8, Math.min(50, oldV * Math.exp(d)));
+      const nlp = logPost();
+      if (nlp - curLp + d >= 0 || Math.log(Math.max(1e-12, rng.nextF64())) < nlp - curLp + d) { curLp = nlp; acc++; }
+      else gThetas[g] = oldV;
+    } else {
+      const g = rng.genIndex(mG - 1);
+      if (rng.nextF64() < 0.5 && gSizes[g] > 1) {
+        gSizes[g]--; gSizes[g + 1]++;
+        const nlp = logPost();
+        if (nlp >= curLp || Math.log(Math.max(1e-12, rng.nextF64())) < nlp - curLp) { curLp = nlp; acc++; }
+        else { gSizes[g]++; gSizes[g + 1]--; }
+      } else if (gSizes[g + 1] > 1) {
+        gSizes[g]++; gSizes[g + 1]--;
+        const nlp = logPost();
+        if (nlp >= curLp || Math.log(Math.max(1e-12, rng.nextF64())) < nlp - curLp) { curLp = nlp; acc++; }
+        else { gSizes[g]--; gSizes[g + 1]++; }
+      }
+    }
+    if (it >= burn && (it - burn) % stride === 0) {
+      const ivTh = [];
+      gSizes.forEach((cnt, gi) => { for (let c = 0; c < cnt; c++) ivTh.push(gThetas[gi]); });
+      gridTimes.forEach((tq, gi) => {
+        let pos = intervals.findIndex(iv => tq <= iv.tEnd);
+        if (pos < 0) pos = mIv - 1;
+        samples[gi].push(ivTh[pos] / (2 * mu));
+      });
+    }
+  }
+
+  const grid = gridTimes.map((tq, gi) => {
+    const arr = samples[gi].slice().sort((a, b) => a - b);
+    const sn = Math.max(1, arr.length);
+    let pos = intervals.findIndex(iv => tq <= iv.tEnd);
+    if (pos < 0) pos = mIv - 1;
+    return {
+      tSubs: tq,
+      tScaled: (tq / mu) * genTime,
+      med: arr[Math.floor(sn / 2)] || 1,
+      lo: arr[Math.min(sn - 1, Math.floor(sn * 0.025))] || 1,
+      hi: arr[Math.min(sn - 1, Math.floor(sn * 0.975))] || 1,
+      genNe: genThetas[pos] / (2 * mu)
+    };
+  });
+
+  // Rogers-Harpending Sudden Expansion Fit
+  const maxD = Math.max(8, ...mismatch.map(x => x[0]));
+  const totPairs = Math.max(1, mismatch.reduce((a, x) => a + x[1], 0));
+  const obsF = new Array(maxD + 1).fill(0);
+  let meanM = 0;
+  mismatch.forEach(([d, c]) => { obsF[d] = c / totPairs; meanM += d * obsF[d]; });
+  let varM = 0;
+  obsF.forEach((f, d) => { varM += (d - meanM) * (d - meanM) * f; });
+  const momT0 = Math.max(0.05, Math.min(Math.max(0.5, meanM), Math.sqrt(Math.max(0, varM - meanM))));
+  let bestP = [momT0, Math.max(5, meanM * 12), Math.max(0.25, meanM - momT0)], bestSsd = Infinity;
+
+  [0.15, 0.5, 1.0, 1.8].forEach(m0 => {
+    const c0 = Math.max(0.01, momT0 * m0);
+    [3, 12, 45, 150].forEach(t1 => {
+      if (t1 <= c0) return;
+      for (let st = 1; st <= 18; st++) {
+        const ctau = Math.max(1, meanM) * 2.2 * (st / 18);
+        const w = rogersHarpendingWave(c0, t1, ctau, maxD);
+        let ssd = 0;
+        for (let d = 0; d <= maxD; d++) ssd += (obsF[d] - w[d]) * (obsF[d] - w[d]);
+        if (ssd < bestSsd) { bestSsd = ssd; bestP = [c0, t1, ctau]; }
+      }
+    });
+  });
+
+  const [theta0, theta1, tau] = bestP;
+  const fitWave = rogersHarpendingWave(theta0, theta1, tau, maxD);
+  const thC = Math.max(0.05, meanM), qC = thC / (1 + thC);
+  let pq = 1;
+  const constWaveRaw = [];
+  for (let d = 0; d <= maxD; d++) { constWaveRaw.push(pq / (1 + thC)); pq *= qC; }
+  const cSum = Math.max(1e-12, constWaveRaw.reduce((a, b) => a + b, 0));
+  const constWave = constWaveRaw.map(v => v / cSum);
+  let ssdConst = 0;
+  for (let d = 0; d <= maxD; d++) ssdConst += (obsF[d] - constWave[d]) * (obsF[d] - constWave[d]);
+
+  const fold = grid[0].med / Math.max(1e-6, grid[grid.length - 1].med);
+  return {
+    tmrcaSubs, tmrcaScaled: (tmrcaSubs / mu) * genTime, accRate: acc / iters, aicc: bestAicc,
+    fold, trend: fold > 1.5 ? ("Expansion (" + fold.toFixed(2) + "x)") : (fold < 0.65 ? ("Contraction (" + fold.toFixed(2) + "x)") : ("Near-Constant (" + fold.toFixed(2) + "x)")),
+    intervals, grid,
+    expansion: { theta0, theta1, tau, expTimeScaled: (tau / (2 * mu * L)) * genTime, ssdExp: bestSsd, ssdConst, maxD, obsF, fitWave, constWave }
+  };
+}
+
+function computeSlidingWindowScan(seqs, winBp, stepBp, gapMode) {
+  const L = seqs[0].seq.length;
+  const W = Math.max(8, Math.min(L, winBp)), S = Math.max(1, Math.min(W, stepBp));
+  const windows = [];
+  for (let start = 0; start < L; start += S) {
+    const end = Math.min(L, start + W);
+    if (end - start < 6 && windows.length > 0) break;
+    const sliced = seqs.map(r => ({ id: r.id, pop: r.pop, seq: r.seq.slice(start, end) }));
+    const st = computePopGenStats(sliced, gapMode);
+    const td = st.tajimaD !== null ? st.tajimaD : 0;
+    const fld = st.fuLiD !== null ? st.fuLiD : 0;
+    const meanFst = st.popDiv.length ? st.popDiv.reduce((a, x) => a + x.fst, 0) / st.popDiv.length : 0;
+    const meanDxy = st.popDiv.length ? st.popDiv.reduce((a, x) => a + x.dxy, 0) / st.popDiv.length : 0;
+    const flag = td <= -1.65 ? "Putative Selective Sweep / Singleton Excess"
+      : (td >= 1.65 ? "Putative Balancing Selection Peak"
+      : (meanFst >= 0.55 ? "Divergence Island (High F_ST)" : "Consistent with Neutrality"));
+    windows.push({ idx: windows.length + 1, start: start + 1, end, mid: 0.5 * (start + 1 + end), segS: st.S, pi: st.pi, thW: st.thetaSite, td, fld, fst: meanFst, dxy: meanDxy, flag });
+    if (end === L) break;
+  }
+  return { W, S, L, windows };
+}
+
+/* =========================================================================
+   7. GLOBAL APPLICATION STATE & PERSISTENCE ("SAVE GAME" WORKSETS)
+   ========================================================================= */
+const APP = window.APP = {
+  screen: "hub",
+  groupFilter: "ALL",
+  activeModule: "V1",
+  simTab: "spatial",
+  playing: false,
+  stepsPerFrame: 1,
+  worksetTitle: "Default Population Biology & Demographic Skyline Workset",
+  studyNotes: "Compare boreal predator-prey cycles, E. coli growth phases, Bayesian Skyline expansion, and 180-bp sliding-window sweep/balancing peaks.",
+  sims: createInitialSimStates(),
+  emp: {
+    presetIdx: 3,
+    datasetName: ALIGNMENT_PRESETS[3].name,
+    rawText: ALIGNMENT_PRESETS[3].fasta,
+    gapMode: "pairwise",
+    netAlg: "MJ",
+    mjEps: 0,
+    showMutLabels: true,
+    bspGroups: 4,
+    bspSteps: 1800,
+    clockMu: 1e-7,
+    genTime: 1.0,
+    winBp: 48,
+    stepBp: 12,
+    seqs: [],
+    stats: null,
+    net: null,
+    sky: null,
+    scan: null,
+    error: null
+  },
+  memorySlots: {},
+  hoverPos: {},
+  dragNode: null
+};
+
+function recomputeEmpiricalAll() {
+  try {
+    const seqs = parseAlignmentText(APP.emp.rawText);
+    const stats = computePopGenStats(seqs, APP.emp.gapMode);
+    const net = buildHaplotypeNetwork(seqs, APP.emp.netAlg, APP.emp.mjEps);
+    const sky = computeSkylineAndExpansion(seqs, stats.mismatch, APP.emp.bspGroups, APP.emp.bspSteps, APP.emp.clockMu, APP.emp.genTime);
+    const scan = computeSlidingWindowScan(seqs, APP.emp.winBp, APP.emp.stepBp, APP.emp.gapMode);
+    APP.emp.seqs = seqs;
+    APP.emp.stats = stats;
+    APP.emp.net = net;
+    APP.emp.sky = sky;
+    APP.emp.scan = scan;
+    APP.emp.error = null;
+  } catch (err) {
+    APP.emp.error = err.message || String(err);
+  }
+}
+
+/* =========================================================================
+   8. SCIENTIFIC PLOTTER & SPATIAL / NETWORK CANVAS RENDERERS
+   ========================================================================= */
+function prepCanvas(canvasId) {
+  const c = document.getElementById(canvasId);
+  if (!c) return null;
+  const rect = c.parentElement.getBoundingClientRect();
+  const w = Math.max(260, Math.floor(rect.width));
+  const h = Math.max(120, Math.floor(rect.height));
+  const dpr = window.devicePixelRatio || 1;
+  if (c.width !== Math.floor(w * dpr) || c.height !== Math.floor(h * dpr)) {
+    c.width = Math.floor(w * dpr);
+    c.height = Math.floor(h * dpr);
+  }
+  const ctx = c.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { c, ctx, w, h };
+}
+
+function drawSciPlot(canvasId, opts) {
+  const env = prepCanvas(canvasId);
+  if (!env) return;
+  const { ctx, w, h } = env;
+  ctx.fillStyle = "#0c1320";
+  ctx.fillRect(0, 0, w, h);
+
+  const bands = opts.bands || [];
+  const series = opts.series || [];
+  const bars = opts.bars || [];
+  const vlines = opts.vlines || [];
+  const hlines = opts.hlines || [];
+
+  const padL = 58, padR = 24, padT = 26, padB = 24;
+  const pw = Math.max(20, w - padL - padR), ph = Math.max(20, h - padT - padB);
+
+  // Legend top strip
+  ctx.font = "600 11px Inter, sans-serif";
+  let lx = padL;
+  bands.forEach(b => {
+    ctx.fillStyle = b.legendColor || "#38bdf8";
+    ctx.fillText("▒ " + b.name, lx, 15);
+    lx += ctx.measureText("▒ " + b.name).width + 14;
+  });
+  series.forEach(s => {
+    if (!s.name) return;
+    ctx.fillStyle = s.color;
+    ctx.fillText("■ " + s.name, lx, 15);
+    lx += ctx.measureText("■ " + s.name).width + 14;
+  });
+
+  let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+  bands.forEach(b => b.pts.forEach(([x, lo, hi]) => { xMin = Math.min(xMin, x); xMax = Math.max(xMax, x); yMin = Math.min(yMin, lo); yMax = Math.max(yMax, hi); }));
+  series.forEach(s => s.pts.forEach(([x, y]) => { if (isFinite(x) && isFinite(y)) { xMin = Math.min(xMin, x); xMax = Math.max(xMax, x); yMin = Math.min(yMin, y); yMax = Math.max(yMax, y); } }));
+  bars.forEach(b => { xMin = Math.min(xMin, b.x - b.w); xMax = Math.max(xMax, b.x + b.w); yMin = Math.min(yMin, 0); yMax = Math.max(yMax, b.y); });
+  hlines.forEach(hl => { yMin = Math.min(yMin, hl.y); yMax = Math.max(yMax, hl.y); });
+
+  if (!isFinite(xMin) || !isFinite(yMin)) return;
+  if (Math.abs(xMax - xMin) < 1e-9) xMax = xMin + 1;
+  if (Math.abs(yMax - yMin) < 1e-9) { yMax = yMin + 1; yMin -= 0.5; }
+  else {
+    const py = 0.08 * (yMax - yMin);
+    yMax += py;
+    if (yMin >= 0 && yMin < 0.15 * yMax) yMin = 0; else yMin -= py;
+  }
+
+  const sx = x => padL + ((x - xMin) / (xMax - xMin)) * pw;
+  const sy = y => padT + ph - ((y - yMin) / (yMax - yMin)) * ph;
+
+  // Grid & axes
+  ctx.strokeStyle = "#1d2b40";
+  ctx.lineWidth = 1;
+  ctx.font = "10px ui-monospace, monospace";
+  ctx.fillStyle = "#8ca0ba";
+  for (let i = 0; i <= 4; i++) {
+    const f = i / 4;
+    const gx = padL + f * pw, gy = padT + ph - f * ph;
+    ctx.beginPath(); ctx.moveTo(gx, padT); ctx.lineTo(gx, padT + ph); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(padL, gy); ctx.lineTo(padL + pw, gy); ctx.stroke();
+    const xv = xMin + f * (xMax - xMin), yv = yMin + f * (yMax - yMin);
+    ctx.textAlign = i === 0 ? "left" : (i === 4 ? "right" : "center");
+    ctx.fillText(Math.abs(xv) >= 100 ? xv.toFixed(0) : xv.toFixed(1), gx, padT + ph + 14);
+    ctx.textAlign = "right";
+    ctx.fillText(Math.abs(yv) >= 100 ? yv.toFixed(0) : yv.toFixed(2), padL - 6, gy + 3);
+  }
+  ctx.textAlign = "left";
+
+  // Shaded 95% Credible Ribbons
+  bands.forEach(b => {
+    if (b.pts.length < 2) return;
+    ctx.fillStyle = b.fill;
+    ctx.beginPath();
+    b.pts.forEach(([x, , hi], i) => { if (i === 0) ctx.moveTo(sx(x), sy(hi)); else ctx.lineTo(sx(x), sy(hi)); });
+    for (let i = b.pts.length - 1; i >= 0; i--) ctx.lineTo(sx(b.pts[i][0]), sy(b.pts[i][1]));
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  // Horizontal & Vertical reference lines
+  hlines.forEach(hl => {
+    if (hl.y >= yMin && hl.y <= yMax) {
+      ctx.strokeStyle = hl.color; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(padL, sy(hl.y)); ctx.lineTo(padL + pw, sy(hl.y)); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  });
+  vlines.forEach(vl => {
+    if (vl.x >= xMin && vl.x <= xMax) {
+      ctx.strokeStyle = vl.color; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(sx(vl.x), padT); ctx.lineTo(sx(vl.x), padT + ph); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  });
+
+  // Bars
+  bars.forEach(b => {
+    const x0 = sx(b.x - 0.5 * b.w), x1 = sx(b.x + 0.5 * b.w);
+    const y0 = sy(b.y), y1 = sy(0);
+    ctx.fillStyle = b.color;
+    ctx.fillRect(x0, Math.min(y0, y1), Math.max(2, x1 - x0), Math.abs(y1 - y0));
+  });
+
+  // Series
+  series.forEach(s => {
+    if (!s.pts.length) return;
+    if (s.dots) {
+      ctx.fillStyle = s.color;
+      const stride = Math.max(1, Math.floor(s.pts.length / 2200));
+      for (let i = 0; i < s.pts.length; i += stride) {
+        ctx.beginPath();
+        ctx.arc(sx(s.pts[i][0]), sy(s.pts[i][1]), s.r || 2, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    } else {
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = s.w || 2;
+      ctx.beginPath();
+      const stride = Math.max(1, Math.floor(s.pts.length / 650));
+      for (let i = 0; i < s.pts.length; i += stride) {
+        const px = sx(s.pts[i][0]), py = sy(s.pts[i][1]);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      const last = s.pts[s.pts.length - 1];
+      ctx.lineTo(sx(last[0]), sy(last[1]));
+      ctx.stroke();
+    }
+  });
+
+  // Hover crosshair readout
+  const hp = APP.hoverPos[canvasId];
+  if (hp && hp.x >= padL && hp.x <= padL + pw && hp.y >= padT && hp.y <= padT + ph) {
+    ctx.strokeStyle = "rgba(226,232,240,0.4)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(hp.x, padT); ctx.lineTo(hp.x, padT + ph); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(padL, hp.y); ctx.lineTo(padL + pw, hp.y); ctx.stroke();
+    const vx = xMin + ((hp.x - padL) / pw) * (xMax - xMin);
+    const vy = yMax - ((hp.y - padT) / ph) * (yMax - yMin);
+    const txt = "x = " + vx.toFixed(2) + ", y = " + vy.toFixed(3);
+    ctx.fillStyle = "rgba(15,23,42,0.88)";
+    const tw = ctx.measureText(txt).width + 12;
+    ctx.fillRect(padL + pw - tw - 4, padT + 4, tw, 18);
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillText(txt, padL + pw - tw + 2, padT + 16);
+  }
+}
+
+function renderSpatialCanvas() {
+  const id = APP.activeModule;
+  const s = APP.sims[id];
+  const env = prepCanvas("spatialCanvas");
+  if (!env || !s) return;
+  const { ctx, w, h } = env;
+  ctx.fillStyle = "#0c1320";
+  ctx.fillRect(0, 0, w, h);
+  const leg = document.getElementById("spatialLegend");
+
+  const drawXHist = agents => {
+    const bins0 = new Array(16).fill(0), bins1 = new Array(16).fill(0);
+    agents.forEach(a => {
+      const b = Math.min(15, Math.max(0, Math.floor(a.x * 16)));
+      if (a.kind === 0) bins0[b]++; else bins1[b]++;
+    });
+    const mx = Math.max(1, ...bins0.map((v, i) => v + bins1[i]));
+    const bw = w / 16;
+    for (let i = 0; i < 16; i++) {
+      const h0 = (bins0[i] / mx) * 28, h1 = (bins1[i] / mx) * 28;
+      ctx.fillStyle = "rgba(52,211,153,0.45)";
+      ctx.fillRect(i * bw + 1, h - h0, bw - 2, h0);
+      ctx.fillStyle = "rgba(249,115,22,0.55)";
+      ctx.fillRect(i * bw + 1, h - h0 - h1, bw - 2, h1);
+    }
+  };
+
+  if (id === "V1") {
+    ctx.strokeStyle = "#162436";
+    for (let i = 1; i < 8; i++) {
+      ctx.beginPath(); ctx.moveTo((w * i) / 8, 0); ctx.lineTo((w * i) / 8, h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, (h * i) / 8); ctx.lineTo(w, (h * i) / 8); ctx.stroke();
+    }
+    s.agents.forEach(a => {
+      const px = a.x * w, py = a.y * (h - 32);
+      ctx.beginPath();
+      if (a.kind === 0) { ctx.fillStyle = "#6ee7b7"; ctx.arc(px, py, 4, 0, 7); ctx.fill(); }
+      else {
+        ctx.fillStyle = "#f97316"; ctx.arc(px, py, 6.2, 0, 7); ctx.fill();
+        ctx.strokeStyle = "rgba(249,115,22,0.45)"; ctx.beginPath(); ctx.arc(px, py, 9.5, 0, 7); ctx.stroke();
+      }
+    });
+    drawXHist(s.agents);
+    leg.textContent = "Boreal Arena: Emerald = Snowshoe Hares (" + s.hares.toFixed(1) + "/km²) | Orange halos = Canada Lynx (" + s.lynx.toFixed(1) + "/100 km²) | Bottom strip = Spatial X-distribution";
+  } else if (id === "V2") {
+    ctx.fillStyle = "#0b2239"; ctx.fillRect(0, 0, w, h);
+    const fg = Math.round(45 + 75 * (s.fir / 100));
+    ctx.fillStyle = "rgb(26," + fg + ",42)";
+    ctx.beginPath();
+    ctx.ellipse(w * 0.5, h * 0.5, w * 0.42, h * 0.28, -0.08, 0, 2 * Math.PI);
+    ctx.fill();
+    for (let pk = 0; pk < 3; pk++) {
+      ctx.strokeStyle = "rgba(250,204,21,0.35)";
+      ctx.beginPath(); ctx.arc((0.25 + 0.25 * pk) * w, (0.42 + 0.08 * pk) * h, w * 0.10, 0, 7); ctx.stroke();
+    }
+    s.agents.forEach(a => {
+      ctx.fillStyle = a.kind === 0 ? "#d6b484" : "#f87171";
+      ctx.beginPath(); ctx.arc(a.x * w, a.y * h, a.kind === 0 ? 3.8 : 5.8, 0, 7); ctx.fill();
+    });
+    leg.textContent = "Isle Royale (Lake Superior): Tan = Moose (" + s.moose.toFixed(0) + ") | Red = Gray Wolves (" + s.wolves.toFixed(1) + ") in 3 pack rings | Island greenness = Balsam Fir Browse (" + s.fir.toFixed(0) + "%)";
+  } else if (id === "V3") {
+    const gr = Math.min(2, s.pop / Math.max(1, s.k));
+    ctx.fillStyle = "rgb(36," + Math.round(115 - 42 * gr) + ",44)";
+    ctx.fillRect(14, 14, w - 28, h - 50);
+    s.agents.forEach(a => {
+      ctx.fillStyle = "#f1f5f9";
+      ctx.beginPath(); ctx.arc(a.x * w, a.y * (h - 36), 4.2, 0, 7); ctx.fill();
+    });
+    drawXHist(s.agents);
+    leg.textContent = "Hirta Pasture (St. Kilda): White dots = Soay sheep (" + s.pop.toFixed(0) + ") | Turf greenness = Festuca forage standing crop | Last gale mortality = " + s.lastLoss.toFixed(1) + "%";
+  } else if (id === "I1") {
+    const h3 = h / 3;
+    [["#3a3022", "Upper Flour Layer: Surface Adults A_t (cannibalize eggs & pupae)"],
+     ["#30271c", "Middle Flour Layer: Feeding Larvae L_t (cannibalize eggs)"],
+     ["#261e16", "Lower Flour Layer: Quiescent Pupae P_t"]].forEach(([col, txt], idx) => {
+      ctx.fillStyle = col; ctx.fillRect(0, idx * h3, w, h3);
+      ctx.fillStyle = "#e2d4ba"; ctx.font = "12px Inter, sans-serif";
+      ctx.fillText(txt, 12, idx * h3 + 18);
+    });
+    s.agents.forEach(a => {
+      ctx.fillStyle = a.kind === 0 ? "#fde047" : (a.kind === 1 ? "#7dd3fc" : "#d97706");
+      ctx.beginPath(); ctx.arc(a.x * w, a.y * h, a.kind === 2 ? 5.0 : 3.8, 0, 7); ctx.fill();
+    });
+    leg.textContent = "Tribolium Flour Vial: Amber = Adults (" + s.A.toFixed(1) + ") | Yellow = Larvae (" + s.L.toFixed(1) + ") | Sky = Pupae (" + s.P.toFixed(1) + ")";
+  } else if (id === "I2") {
+    const cw = w / s.cols, ch = h / s.rows;
+    ctx.font = "11px ui-monospace, monospace";
+    for (let r = 0; r < s.rows; r++) {
+      for (let c = 0; c < s.cols; c++) {
+        const idx = r * s.cols + c;
+        if (s.barrier > 0.05) {
+          ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = s.barrier * 4.5;
+          ctx.strokeRect(c * cw + 2, r * ch + 2, cw - 4, ch - 4);
+        }
+        const pf = Math.min(1, s.preyP[idx] / s.kPatch), qf = Math.min(1, s.predP[idx] / 25);
+        const cx = (c + 0.5) * cw, cy = (r + 0.5) * ch, rad = Math.min(cw, ch) * 0.34;
+        ctx.fillStyle = "rgb(" + Math.round(70 + 175 * pf) + "," + Math.round(55 + 95 * pf) + ",32)";
+        ctx.beginPath(); ctx.arc(cx, cy, rad, 0, 7); ctx.fill();
+        if (qf > 0.02) {
+          ctx.strokeStyle = "#ef4444"; ctx.lineWidth = 1.5 + 3.5 * qf;
+          ctx.beginPath(); ctx.arc(cx, cy, rad + 4, 0, 7); ctx.stroke();
+        }
+        ctx.fillStyle = "#fff"; ctx.textAlign = "center";
+        ctx.fillText(s.preyP[idx].toFixed(0) + "/" + s.predP[idx].toFixed(0), cx, cy + 4);
+      }
+    }
+    ctx.textAlign = "left";
+    leg.textContent = "Huffaker 6x4 Citrus Tray: Orange brightness = Six-spotted mite prey | Red ring = Predatory mites | Border width = Vaseline barrier (" + (s.barrier * 100).toFixed(0) + "%)";
+  } else if (id === "I3") {
+    for (let i = 0; i < 5; i++) {
+      const sx = (0.16 + 0.17 * i) * w;
+      ctx.strokeStyle = "#2e7d32"; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.moveTo(sx, 18); ctx.lineTo(sx, h - 18); ctx.stroke();
+    }
+    s.agents.forEach(a => {
+      ctx.fillStyle = a.kind === 0 ? (a.aux > 0.5 ? "#38bdf8" : "#a3e635") : (a.kind === 1 ? "#f43f5e" : "#b48e5c");
+      ctx.beginPath(); ctx.arc(a.x * w, a.y * h, a.kind === 1 ? 4.8 : 3.8, 0, 7); ctx.fill();
+    });
+    leg.textContent = "Legume Stems: Lime = Exposed Pea Aphids | Cyan = Protected Stem-Refuge Aphids | Rose = Aphidius Wasps | Tan = Parasitized Mummies";
+  } else if (id === "M1") {
+    const gt = Math.min(35, Math.round(s.glc * 6));
+    ctx.fillStyle = "rgb(14," + (22 + gt) + ",30)"; ctx.fillRect(0, 0, w, h);
+    s.agents.forEach(a => {
+      const cx = a.x * w, cy = a.y * h, ang = a.aux * 2 * Math.PI;
+      ctx.strokeStyle = a.kind === 0 ? "#34d399" : "#64748b";
+      ctx.lineWidth = 3.8; ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(cx - 5.5 * Math.cos(ang), cy - 5.5 * Math.sin(ang));
+      ctx.lineTo(cx + 5.5 * Math.cos(ang), cy + 5.5 * Math.sin(ang));
+      ctx.stroke();
+    });
+    leg.textContent = "Darkfield Microcolony View: Emerald rods = Viable E. coli (" + s.live.toFixed(2) + " x 10^7/mL) | Slate rods = Non-viable cells | Enzyme Acclimation = " + (s.enz * 100).toFixed(0) + "%";
+  } else if (id === "M2") {
+    if (!s.compMode && s.refuge > 0.01) {
+      ctx.fillStyle = "#302618"; ctx.fillRect(0, h * 0.77, w, h * 0.23);
+      ctx.fillStyle = "#ead2a8"; ctx.font = "12px Inter, sans-serif";
+      ctx.fillText("Oat-Medium Sediment Refuge Zone (protects P. caudatum from Didinium)", 12, h * 0.77 + 18);
+    }
+    s.agents.forEach(a => {
+      ctx.fillStyle = a.kind === 0 ? "#60a5fa" : (s.compMode ? "#34d399" : "#f43f5e");
+      ctx.beginPath(); ctx.arc(a.x * w, a.y * h, a.kind === 0 ? 4.6 : (s.compMode ? 3.6 : 5.8), 0, 7); ctx.fill();
+    });
+    leg.textContent = s.compMode ? "Gause Competition: Blue = P. caudatum | Emerald = P. aurelia" : "Gause Predation: Blue = P. caudatum | Crimson = Didinium nasutum";
+  } else if (id === "M3") {
+    const cw = w / s.side, ch = h / s.side;
+    for (let r = 0; r < s.side; r++) {
+      for (let c = 0; c < s.side; c++) {
+        const idx = r * s.side + c;
+        const b = Math.min(1, s.lawn[idx]), v = Math.min(1, s.pgrid[idx] / 25);
+        ctx.fillStyle = "rgb(" + Math.round(24 + 185 * v) + "," + Math.round(30 + 165 * b) + "," + Math.round(42 + 60 * b) + ")";
+        ctx.fillRect(c * cw, r * ch, cw - 0.8, ch - 0.8);
+      }
+    }
+    leg.textContent = "24x24 Agar Bacterial Lawn: Turbid green = Susceptible E. coli lawn | Amber/dark clearing zones = Radial T4 lytic plaques | Resistant R = " + s.R.toFixed(2);
+  } else if (id === "T1") {
+    for (let i = 0; i < 64; i++) {
+      for (let j = i + 1; j < 64; j++) {
+        const p1 = s.patches[i], p2 = s.patches[j];
+        if (!p1.destroyed && !p2.destroyed && Math.hypot(p1.x - p2.x, p1.y - p2.y) < 0.18) {
+          ctx.strokeStyle = "rgba(100,116,139,0.28)"; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(p1.x * w, p1.y * h); ctx.lineTo(p2.x * w, p2.y * h); ctx.stroke();
+        }
+      }
+    }
+    s.patches.forEach(p => {
+      ctx.beginPath(); ctx.arc(p.x * w, p.y * h, 7.5, 0, 7);
+      if (p.destroyed) { ctx.strokeStyle = "#991b1b"; ctx.lineWidth = 1.6; ctx.stroke(); }
+      else if (p.occupied) { ctx.fillStyle = "#34d399"; ctx.fill(); }
+      else { ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = 1.6; ctx.stroke(); }
+    });
+    leg.textContent = "64-Patch Landscape: Solid Green = Occupied | Hollow Gray = Empty Suitable | Red Ring = Destroyed Habitat (h = " + (s.h * 100).toFixed(1) + "%, h_crit = " + (Math.max(0, 1 - s.e / s.c) * 100).toFixed(1) + "%)";
+  } else if (id === "T2") {
+    const mx = s.k * (s.ricker ? 2.4 : 1.45);
+    const sx = x => 44 + (x / mx) * (w - 64), sy = y => (h - 28) - (y / mx) * (h - 46);
+    ctx.strokeStyle = "#64748b"; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(sx(0), sy(0)); ctx.lineTo(sx(mx), sy(mx)); ctx.stroke();
+    ctx.strokeStyle = "#38bdf8"; ctx.lineWidth = 2.2; ctx.beginPath();
+    for (let i = 0; i <= 120; i++) {
+      const xv = mx * (i / 120);
+      const yv = s.ricker ? xv * Math.exp(s.r * (1 - xv / s.k)) : Math.max(0, xv * (1 + s.r * (1 - xv / s.k)));
+      if (i === 0) ctx.moveTo(sx(xv), sy(yv)); else ctx.lineTo(sx(xv), sy(yv));
+    }
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(250,204,21,0.8)"; ctx.lineWidth = 1.3; ctx.beginPath();
+    s.cobweb.forEach(([x, y], i) => { if (i === 0) ctx.moveTo(sx(x), sy(y)); else ctx.lineTo(sx(x), sy(y)); });
+    ctx.stroke();
+    const lyap = s.lyapCnt ? (s.lyapSum / s.lyapCnt) : 0;
+    leg.textContent = "Cobweb Return Map (N_{t+1} vs N_t): Cyan = Return Curve | Gold = Orbit Staircase | N_t = " + s.n.toFixed(2) + " | Lyapunov lambda = " + lyap.toFixed(4);
+  } else if (id === "T3") {
+    const bl = [w * 0.15, h - 30], br = [w * 0.85, h - 30], ap = [w * 0.5, 28];
+    ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(bl[0], bl[1]); ctx.lineTo(br[0], br[1]); ctx.lineTo(ap[0], ap[1]); ctx.closePath(); ctx.stroke();
+    ctx.fillStyle = "#e2e8f0"; ctx.font = "12px Inter, sans-serif";
+    ctx.fillText("aa (p=0)", bl[0] - 24, bl[1] + 18);
+    ctx.fillText("AA (p=1)", br[0] - 24, br[1] + 18);
+    ctx.fillText("Aa Heterozygote (H=1)", ap[0] - 62, ap[1] - 8);
+    const tpt = (p, het) => [bl[0] + p * (br[0] - bl[0]), bl[1] - het * (bl[1] - ap[1])];
+    ctx.strokeStyle = "#60a5fa"; ctx.lineWidth = 2; ctx.beginPath();
+    for (let i = 0; i <= 80; i++) {
+      const p = i / 80, [px, py] = tpt(p, 2 * p * (1 - p));
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    const pal = ["#34d399", "#fb923c", "#f472b6", "#facc15", "#a78bfa", "#2dd4bf"];
+    s.freqs.forEach((p, idx) => {
+      const [px, py] = tpt(p, 2 * p * (1 - p));
+      ctx.fillStyle = pal[idx % pal.length];
+      ctx.beginPath(); ctx.arc(px, py, 6.5, 0, 7); ctx.fill();
+    });
+    leg.textContent = "De Finetti Hardy-Weinberg Ternary Diagram: Blue = HWE 2p(1-p) parabola | Dots = " + s.freqs.length + " Diploid Demes";
+  } else if (id === "T4") {
+    const mxT = Math.max(1, s.tmrca);
+    const npos = idN => {
+      const nd = s.nodes[idN];
+      return [30 + nd.x * (w - 60), (h - 24) - (nd.time / mxT) * (h - 52)];
+    };
+    s.branches.forEach(br => {
+      const [cx, cy] = npos(br.child), [px, py] = npos(br.parent);
+      ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, py); ctx.lineTo(px, py); ctx.stroke();
+      for (let m = 0; m < Math.min(10, br.muts); m++) {
+        const f = (m + 1) / (Math.min(10, br.muts) + 1);
+        ctx.fillStyle = "#facc15";
+        ctx.beginPath(); ctx.arc(cx, cy + f * (py - cy), 3.5, 0, 7); ctx.fill();
+      }
+    });
+    s.nodes.forEach(nd => {
+      const [nx, ny] = npos(nd.id);
+      ctx.fillStyle = nd.leaf ? "#38bdf8" : "#f472b6";
+      ctx.beginPath(); ctx.arc(nx, ny, 4.2, 0, 7); ctx.fill();
+    });
+    leg.textContent = "Kingman Coalescent Genealogy (n = " + s.n + "): T_MRCA = " + s.tmrca.toFixed(0) + " gen (Expected = " + (4 * s.ne * (1 - 1 / s.n)).toFixed(0) + ") | Gold dots = Infinite-sites branch mutations";
+  } else if (id === "T5") {
+    const az = (s.az * Math.PI) / 180, el = (s.el * Math.PI) / 180;
+    const caz = Math.cos(az), saz = Math.sin(az), cel = Math.cos(el), sel = Math.sin(el);
+    const cx = w * 0.5, cy = h * 0.62, sc = Math.min(w, h) * 0.66;
+    const proj = (ux, uy, wz) => {
+      const x = ux - 0.5, y = uy - 0.5, z = (wz - 0.45) * 0.52;
+      const rx = x * caz - y * saz, ry = x * saz + y * caz;
+      const depth = ry * cel + z * sel;
+      const sy = ry * sel - z * cel;
+      const persp = 1 / Math.max(0.4, 1 + 0.22 * depth);
+      return [cx + rx * persp * sc, cy + sy * persp * sc, depth];
+    };
+    const gN = 22, quads = [];
+    for (let i = 0; i < gN; i++) {
+      const x0 = i / gN, x1 = (i + 1) / gN;
+      for (let j = 0; j < gN; j++) {
+        const y0 = j / gN, y1 = (j + 1) / gN;
+        const w00 = evalLandscapeFitness(s, x0, y0), w10 = evalLandscapeFitness(s, x1, y0);
+        const w11 = evalLandscapeFitness(s, x1, y1), w01 = evalLandscapeFitness(s, x0, y1);
+        const p00 = proj(x0, y0, w00), p10 = proj(x1, y0, w10), p11 = proj(x1, y1, w11), p01 = proj(x0, y1, w01);
+        const md = 0.25 * (p00[2] + p10[2] + p11[2] + p01[2]);
+        const mw = 0.25 * (w00 + w10 + w11 + w01);
+        const t = Math.max(0, Math.min(1, (mw - 0.45) / 1.15));
+        const rC = Math.round(22 + 215 * Math.pow(t, 1.3));
+        const gC = Math.round(65 + 145 * Math.max(0, 1 - Math.abs(t - 0.55) * 1.4));
+        const bC = Math.round(135 - 90 * t);
+        quads.push({ md, pts: [p00, p10, p11, p01], fill: `rgb(${rC},${gC},${bC})` });
+      }
+    }
+    quads.sort((a, b) => b.md - a.md);
+    ctx.strokeStyle = "rgba(15,23,42,0.52)"; ctx.lineWidth = 0.7;
+    quads.forEach(q => {
+      ctx.fillStyle = q.fill;
+      ctx.beginPath();
+      ctx.moveTo(q.pts[0][0], q.pts[0][1]);
+      ctx.lineTo(q.pts[1][0], q.pts[1][1]);
+      ctx.lineTo(q.pts[2][0], q.pts[2][1]);
+      ctx.lineTo(q.pts[3][0], q.pts[3][1]);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    });
+    const pal = ["#f8fafc", "#38bdf8", "#f472b6", "#a3e635", "#fb923c", "#c084fc"];
+    s.demes.forEach((d, idx) => {
+      const col = pal[idx % pal.length];
+      ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.beginPath();
+      d.trail.forEach((tr, ti) => {
+        const [px, py] = proj(tr[0], tr[1], tr[2] + 0.02);
+        if (ti === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+      const [bx, by] = proj(d.x, d.y, 0.45), [tx, ty] = proj(d.x, d.y, d.w + 0.05);
+      ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1.1;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx, ty); ctx.stroke();
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(tx, ty, 5.5, 0, 7); ctx.fill();
+      ctx.strokeStyle = "#000"; ctx.lineWidth = 1.2; ctx.stroke();
+    });
+    const pk1 = proj(0.24, 0.26, evalLandscapeFitness(s, 0.24, 0.26) + 0.12);
+    const pk2 = proj(0.76, 0.74, evalLandscapeFitness(s, 0.76, 0.74) + 0.12);
+    ctx.font = "600 11.5px Inter, sans-serif"; ctx.textAlign = "center";
+    ctx.fillStyle = "#fff"; ctx.fillText("Peak 1 (Suboptimal)", pk1[0], pk1[1]);
+    ctx.fillStyle = "#fef08a"; ctx.fillText("Peak 2 (Global Optimum)", pk2[0], pk2[1]);
+    ctx.textAlign = "left";
+    leg.textContent = "Drag anywhere on the 3D surface to rotate (Azimuth = " + s.az.toFixed(0) + "°, Elevation = " + s.el.toFixed(0) + "°) | Small N_e crosses epistatic valleys (Phase I); dispersion m pulls metapopulation to Peak 2 (Phase III)";
+  } else if (id === "T6") {
+    recomputeEigenT6(s);
+    const pr = MATRIX_PRESETS[s.presetIdx] || MATRIX_PRESETS[0];
+    const k = pr.stages.length, midX = w * 0.47;
+    ctx.fillStyle = "#f8fafc"; ctx.font = "600 12px Inter, sans-serif";
+    ctx.fillText("Cohort Share n_i/N (Cyan) vs. Stable w_i (Gold) & Reprod. Value v_i", 14, 20);
+    const totN = Math.max(1e-9, s.nVec.reduce((a, b) => a + b, 0));
+    const rowH = Math.min(48, (h - 38) / k);
+    for (let i = 0; i < k; i++) {
+      const yt = 32 + i * rowH;
+      const curP = Math.min(1, s.nVec[i] / totN), wP = Math.min(1, s.w[i] || 0);
+      ctx.fillStyle = "#cbd5e1"; ctx.font = "11px Inter, sans-serif";
+      ctx.fillText(pr.stages[i], 14, yt + rowH * 0.48);
+      const bx = 132, maxBw = Math.max(40, midX - bx - 64);
+      ctx.fillStyle = "#38bdf8"; ctx.fillRect(bx, yt + 3, maxBw * curP, rowH * 0.36);
+      ctx.fillStyle = "#facc15"; ctx.fillRect(bx, yt + rowH * 0.44, maxBw * wP, rowH * 0.36);
+      ctx.fillStyle = "#f472b6"; ctx.font = "10.5px ui-monospace, monospace";
+      ctx.fillText("v=" + (s.v[i] || 0).toFixed(1), midX - 56, yt + rowH * 0.52);
+    }
+    const rx0 = midX + 10;
+    ctx.fillStyle = "#f8fafc"; ctx.font = "600 12px Inter, sans-serif";
+    ctx.fillText(`Matrix A_ij & Elasticity E_ij (lambda_1 = ${s.lam.toFixed(4)}, r = ${s.r >= 0 ? "+" : ""}${s.r.toFixed(4)})`, rx0, 20);
+    const cw = Math.min(64, (w - rx0 - 12) / k), ch = Math.min(50, (h - 40) / k);
+    const maxE = Math.max(0.01, ...s.elast.flat());
+    for (let r = 0; r < k; r++) {
+      for (let c = 0; c < k; c++) {
+        const cx = rx0 + c * cw, cy = 32 + r * ch;
+        const av = s.mat[r][c], ev = s.elast[r][c], inten = Math.min(1, ev / maxE);
+        ctx.fillStyle = av <= 0 ? "#121a28" : `rgb(${Math.round(25 + 195 * inten)},${Math.round(55 + 110 * (1 - 0.4 * inten))},${Math.round(85 - 45 * inten)})`;
+        ctx.fillRect(cx, cy, cw - 2, ch - 2);
+        if (av > 0) {
+          ctx.textAlign = "center";
+          ctx.fillStyle = "#fff"; ctx.font = "10px ui-monospace, monospace";
+          ctx.fillText(av >= 10 ? av.toFixed(1) : av.toFixed(3), cx + (cw - 2) / 2, cy + ch * 0.40);
+          ctx.fillStyle = "#fef08a"; ctx.font = "9.5px ui-monospace, monospace";
+          ctx.fillText("E:" + (ev * 100).toFixed(0) + "%", cx + (cw - 2) / 2, cy + ch * 0.76);
+        }
+      }
+    }
+    ctx.textAlign = "left";
+    leg.textContent = pr.name + " | Dominant lambda_1 = " + s.lam.toFixed(4) + " (Realized N_{t+1}/N_t = " + s.realizedLam.toFixed(4) + ") | Amber heatmap cells highlight highest conservation elasticity E_ij";
+  }
+}
+
+/* Haplotype Network Canvas Renderer (E2) */
+function renderHaplotypeCanvas() {
+  const net = APP.emp.net;
+  const env = prepCanvas("hapNetCanvas");
+  if (!env || !net) return;
+  const { ctx, w, h } = env;
+  ctx.fillStyle = "#0c1320";
+  ctx.fillRect(0, 0, w, h);
+  const pal = ["#38bdf8", "#fb923c", "#34d399", "#a78bfa", "#facc15", "#f43f5e"];
+
+  net.edges.forEach(e => {
+    const nu = net.nodes[e.u], nv = net.nodes[e.v];
+    const x1 = nu.x * w, y1 = nu.y * h, x2 = nv.x * w, y2 = nv.y * h;
+    ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+
+    const dx = x2 - x1, dy = y2 - y1, len = Math.max(1, Math.hypot(dx, dy));
+    const nx = -dy / len, ny = dx / len;
+    const ticks = Math.min(12, e.steps);
+    ctx.strokeStyle = "#facc15"; ctx.lineWidth = 2;
+    for (let k = 1; k <= ticks; k++) {
+      const f = 0.30 + 0.40 * ((k - 0.5) / ticks);
+      const tx = x1 + f * dx, ty = y1 + f * dy;
+      ctx.beginPath(); ctx.moveTo(tx - 5.5 * nx, ty - 5.5 * ny); ctx.lineTo(tx + 5.5 * nx, ty + 5.5 * ny); ctx.stroke();
+    }
+    if (APP.emp.showMutLabels && e.muts.length) {
+      const mtxt = e.muts.length <= 3 ? e.muts.join(",") : (e.steps + " steps");
+      const mx = x1 + 0.5 * dx + nx * 16, my = y1 + 0.5 * dy + ny * 16;
+      ctx.font = "10.5px ui-monospace, monospace";
+      const mw = ctx.measureText(mtxt).width + 6;
+      ctx.fillStyle = "rgba(12,19,32,0.86)";
+      ctx.fillRect(mx - mw / 2, my - 9, mw, 13);
+      ctx.fillStyle = "#fde047"; ctx.textAlign = "center";
+      ctx.fillText(mtxt, mx, my + 1);
+    }
+  });
+
+  net.nodes.forEach(nd => {
+    const cx = nd.x * w, cy = nd.y * h;
+    if (nd.mv) {
+      ctx.fillStyle = "#ef4444"; ctx.beginPath(); ctx.arc(cx, cy, 6.5, 0, 7); ctx.fill();
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = "#fca5a5"; ctx.font = "11px ui-monospace, monospace"; ctx.textAlign = "left";
+      ctx.fillText(nd.label, cx + 9, cy + 4);
+    } else {
+      const r = 11 + 5.5 * Math.sqrt(nd.count);
+      let startA = 0;
+      nd.popCounts.forEach((cnt, pidx) => {
+        if (cnt <= 0) return;
+        const sw = (2 * Math.PI * cnt) / Math.max(1, nd.count);
+        ctx.fillStyle = pal[pidx % pal.length];
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, startA, startA + sw); ctx.closePath(); ctx.fill();
+        startA += sw;
+      });
+      ctx.strokeStyle = "#f8fafc"; ctx.lineWidth = 1.8;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.stroke();
+      ctx.fillStyle = "#f8fafc"; ctx.font = "600 11.5px Inter, sans-serif"; ctx.textAlign = "center";
+      ctx.fillText(nd.label + " (n=" + nd.count + ")", cx, cy - r - 6);
+    }
+  });
+  ctx.textAlign = "left";
+}
+
+/* =========================================================================
+   9. UI RENDERING, CONTROLS, WORKSET I/O & EVENT BINDINGS
+   ========================================================================= */
+function setStatus(msg) {
+  document.getElementById("statusLeft").textContent = "[" + APP.activeModule + "] " + msg;
+}
+
+function populateQuickSelectAndPills() {
+  const sel = document.getElementById("quickModuleSelect");
+  sel.innerHTML = GROUPS.map(g => {
+    const opts = Object.values(MODULES).filter(m => m.group === g.id)
+      .map(m => `<option value="${m.code}">[${m.code}] ${m.title}</option>`).join("");
+    return `<optgroup label="${g.title}">${opts}</optgroup>`;
+  }).join("");
+
+  const pills = document.getElementById("groupFilterPills");
+  const items = [{ id: "ALL", label: "All Modules (19)" }].concat(GROUPS.map(g => ({ id: g.id, label: g.badge })));
+  pills.innerHTML = items.map(it => `<button type="button" class="pill ${APP.groupFilter === it.id ? 'active' : ''}" onclick="setGroupFilter('${it.id}')">${it.label}</button>`).join("");
+}
+
+function setGroupFilter(gid) {
+  APP.groupFilter = gid;
+  populateQuickSelectAndPills();
+  renderHubCards();
+}
+
+function clearHubSearch() {
+  document.getElementById("hubSearchInput").value = "";
+  renderHubCards();
+}
+
+function getModulePhaseKey(code) {
+  if (code.startsWith("E")) return "Empirical";
+  return APP.sims[code] ? APP.sims[code].phase : "Exp";
+}
+
+function renderHubCards() {
+  const q = (document.getElementById("hubSearchInput").value || "").trim().toLowerCase();
+  const container = document.getElementById("hubGroupsContainer");
+  let html = "";
+
+  GROUPS.forEach(g => {
+    if (APP.groupFilter !== "ALL" && APP.groupFilter !== g.id) return;
+    const mods = Object.values(MODULES).filter(m => m.group === g.id).filter(m => {
+      if (!q) return true;
+      return m.code.toLowerCase().includes(q) || m.title.toLowerCase().includes(q) ||
+             m.organisms.toLowerCase().includes(q) || m.summary.toLowerCase().includes(q);
+    });
+    if (!mods.length) return;
+    const cards = mods.map(m => {
+      const ph = PHASES[getModulePhaseKey(m.code)] || PHASES.Exp;
+      return `<div class="mod-card">
+        <div>
+          <div style="display:flex;justify-content:space-between;gap:6px;align-items:baseline;">
+            <span><span class="mod-code" style="color:${g.color};">[${m.code}]</span> <strong>${m.title}</strong></span>
+          </div>
+          <div class="mod-org">${m.organisms}</div>
+          <div class="mod-desc">${m.summary}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap;">
+          <span class="phase-tag" style="background:${ph.color};">${ph.label}</span>
+          <button type="button" class="btn btn-primary btn-sm" onclick="launchModule('${m.code}')">Open Module →</button>
+        </div>
+      </div>`;
+    }).join("");
+
+    html += `<div class="group-section">
+      <div class="group-title-row">
+        <span class="group-badge" style="background:${g.color};">${g.badge}</span>
+        <strong style="font-size:15.5px;">${g.title}</strong>
+      </div>
+      <div style="color:var(--text-muted);font-size:12px;">${g.subtitle}</div>
+      <div class="cards-grid">${cards}</div>
+    </div>`;
+  });
+  container.innerHTML = html || `<div class="workset-box">No modules match that search filter.</div>`;
+}
+
+function switchScreen(scr) {
+  APP.screen = scr;
+  if (scr === "hub") {
+    APP.playing = false;
+    document.getElementById("hubView").classList.remove("hidden");
+    document.getElementById("workspaceView").classList.add("hidden");
+    renderHubCards();
+    renderSlotsTable();
+  } else {
+    document.getElementById("hubView").classList.add("hidden");
+    document.getElementById("workspaceView").classList.remove("hidden");
+    renderWorkspaceAll();
+  }
+}
+
+function launchModule(code) {
+  if (!MODULES[code]) return;
+  APP.activeModule = code;
+  APP.playing = false;
+  document.getElementById("quickModuleSelect").value = code;
+  switchScreen("workspace");
+  setStatus("Opened " + MODULES[code].title);
+}
+
+function setSimTab(tab) {
+  APP.simTab = tab;
+  renderWorkspaceStage();
+}
+
+function togglePlay() {
+  if (APP.activeModule.startsWith("E")) return;
+  APP.playing = !APP.playing;
+  document.getElementById("btnPlayPause").textContent = APP.playing ? "⏸ Pause (Space)" : "▶ Play (Space)";
+}
+
+function updateSpeed(val) {
+  APP.stepsPerFrame = parseInt(val, 10) || 1;
+  document.getElementById("speedValLbl").textContent = APP.stepsPerFrame + "x";
+}
+
+function stepActive(cnt) {
+  if (APP.activeModule.startsWith("E")) return;
+  APP.playing = false;
+  document.getElementById("btnPlayPause").textContent = "▶ Play (Space)";
+  for (let i = 0; i < cnt; i++) stepSimulation(APP.activeModule);
+  renderWorkspaceStage();
+}
+
+function advanceNextGrowthPhase() {
+  const id = APP.activeModule;
+  if (id.startsWith("E")) return;
+  APP.playing = false;
+  document.getElementById("btnPlayPause").textContent = "▶ Play (Space)";
+  const startPhase = getModulePhaseKey(id);
+  let steps = 0;
+  for (let i = 0; i < 600; i++) {
+    stepSimulation(id);
+    steps++;
+    if (getModulePhaseKey(id) !== startPhase) break;
+  }
+  renderWorkspaceStage();
+  setStatus("Advanced " + steps + " steps into " + PHASES[getModulePhaseKey(id)].label);
+}
+
+function perturbActive() {
+  const id = APP.activeModule, s = APP.sims[id];
+  if (!s) return;
+  if (id === "V1") s.hares = Math.max(2, s.hares * 0.52);
+  else if (id === "V2") s.wolves = Math.min(80, s.wolves + 8);
+  else if (id === "V3") { s.pop = Math.max(40, s.pop * 0.48); s.lastLoss = 52; s.phase = "Crash"; }
+  else if (id === "I1") s.A = Math.max(2, s.A * 0.4);
+  else if (id === "I2") { s.preyP[0] += 50; s.preyP[5] += 50; s.preyP[23] += 50; }
+  else if (id === "I3") s.W += 60;
+  else if (id === "M1") { s.glc = Math.min(14, s.glc + 2.5); s.waste *= 0.4; }
+  else if (id === "M2") { s.caud += 18; if (!s.compMode) s.did += 4; }
+  else if (id === "M3") { s.pgrid[s.rng.genIndex(s.side * s.side)] += 25; s.V += 80; }
+  else if (id === "T1") { s.h = Math.max(0, s.h - 0.12); s.patches.slice(0, 12).forEach(p => { p.destroyed = false; p.occupied = true; }); }
+  else if (id === "T2") { s.n = 0.12 * s.k; s.cobweb = [[s.n, 0]]; s.lyapSum = 0; s.lyapCnt = 0; }
+  else if (id === "T3") s.freqs = s.freqs.map(p => s.rng.binomial(8, p) / 8);
+  else if (id === "T4") for (let i = 0; i < 20; i++) stepKingman(s);
+  else if (id === "T5") s.demes.forEach(d => { d.x = Math.min(0.95, Math.max(0.05, d.x + s.rng.range(-0.22, 0.28))); d.y = Math.min(0.95, Math.max(0.05, d.y + s.rng.range(-0.22, 0.28))); d.w = evalLandscapeFitness(s, d.x, d.y); d.trail.push([d.x, d.y, d.w]); });
+  else if (id === "T6") { const tot = Math.max(200, Math.min(5000, s.nVec.reduce((a, b) => a + b, 0))); s.nVec = s.nVec.map((_, i) => i === 0 ? tot : 0); }
+  stepSimulation(id);
+  renderWorkspaceStage();
+  setStatus("Applied ecological / genetic perturbation pulse.");
+}
+
+function resetActive() {
+  const fresh = createInitialSimStates();
+  if (fresh[APP.activeModule]) {
+    APP.sims[APP.activeModule] = fresh[APP.activeModule];
+    APP.playing = false;
+    renderWorkspaceAll();
+    setStatus("Reset module to baseline empirical parameters.");
+  }
+}
+
+/* Sidebar Parameter Schemas */
+const PARAM_SCHEMAS = {
+  V1: [
+    { key: "rH", label: "Hare intrinsic growth r_H", min: 0.1, max: 2.0, step: 0.02 },
+    { key: "kH", label: "Carrying capacity K", min: 40, max: 400, step: 5 },
+    { key: "a", label: "Lynx attack rate a", min: 0.005, max: 0.07, step: 0.001 },
+    { key: "th", label: "Handling time T_h", min: 0.02, max: 0.80, step: 0.02 },
+    { key: "mL", label: "Lynx mortality m_L", min: 0.10, max: 0.90, step: 0.02 },
+    { key: "holling", label: "Holling Functional Response (1, 2, 3)", min: 1, max: 3, step: 1 },
+    { key: "noise", type: "bool", label: "Demographic Stochasticity" }
+  ],
+  V2: [
+    { key: "rM", label: "Moose growth r_M", min: 0.08, max: 0.45, step: 0.01 },
+    { key: "kM", label: "Balsam Fir base K", min: 600, max: 3000, step: 50 },
+    { key: "kill", label: "Wolf kill rate", min: 4, max: 28, step: 0.5 },
+    { key: "allee", label: "Pack Allee threshold", min: 0, max: 15, step: 0.5 },
+    { key: "winter", label: "Winter NAO severity", min: 0, max: 1, step: 0.05 },
+    { key: "rescue", type: "bool", label: "Ice-Bridge Wolf Gene Flow" }
+  ],
+  V3: [
+    { key: "lam", label: "Fecundity lambda", min: 1.2, max: 3.8, step: 0.05 },
+    { key: "k", label: "Pasture scale K", min: 400, max: 2200, step: 50 },
+    { key: "beta", label: "Overcompensation beta (>2 crashes)", min: 0.8, max: 5.5, step: 0.1 },
+    { key: "galeProb", label: "Winter gale probability", min: 0, max: 0.8, step: 0.02 },
+    { key: "galeSev", label: "Gale severity", min: 0.05, max: 0.85, step: 0.05 }
+  ],
+  I1: [
+    { key: "b", label: "Larval recruitment b", min: 2, max: 18, step: 0.2 },
+    { key: "cpa", label: "Adult-on-pupa cannibalism c_pa", min: 0.02, max: 0.75, step: 0.01 },
+    { key: "mua", label: "Adult mortality mu_a (bifurcation)", min: 0.05, max: 0.99, step: 0.01 },
+    { key: "parkMode", type: "bool", label: "Park Competition (+ T. confusum)" }
+  ],
+  I2: [
+    { key: "barrier", label: "Vaseline Barrier Maze (0=crash, 0.72=waves)", min: 0, max: 0.96, step: 0.02 },
+    { key: "r", label: "Prey growth r", min: 0.2, max: 1.6, step: 0.05 },
+    { key: "dN", label: "Prey silk dispersal D_N", min: 0.02, max: 0.6, step: 0.02 },
+    { key: "dP", label: "Predator walking D_P", min: 0.01, max: 0.4, step: 0.01 }
+  ],
+  I3: [
+    { key: "lam", label: "Aphid finite rate lambda", min: 1.2, max: 4.0, step: 0.05 },
+    { key: "a", label: "Wasp search area a", min: 0.005, max: 0.10, step: 0.002 },
+    { key: "clumpK", label: "Neg-Binomial clumping k (<1 stabilizes)", min: 0.15, max: 4.0, step: 0.05 },
+    { key: "refuge", label: "Stem refuge fraction", min: 0, max: 0.5, step: 0.02 }
+  ],
+  M1: [
+    { key: "mu1", label: "mu_max Glucose (h^-1)", min: 0.2, max: 1.8, step: 0.05 },
+    { key: "lagR", label: "Lag acclimation rate (h^-1)", min: 0.15, max: 2.5, step: 0.05 },
+    { key: "deathR", label: "Senescence death rate k_d", min: 0.01, max: 0.35, step: 0.01 },
+    { key: "dil", label: "Chemostat Dilution D (h^-1)", min: 0.02, max: 1.4, step: 0.02 },
+    { key: "chemostat", type: "bool", label: "Continuous Monod Chemostat Mode" },
+    { key: "diauxic", type: "bool", label: "Glucose + Lactose Diauxic Shift" }
+  ],
+  M2: [
+    { key: "refuge", label: "Oat-Sediment Refuge Fraction", min: 0, max: 0.65, step: 0.02 },
+    { key: "aAC", label: "Competition alpha (aurelia -> caudatum)", min: 0.2, max: 2.2, step: 0.05 },
+    { key: "compMode", type: "bool", label: "Competitive Exclusion Mode (vs Predation)" },
+    { key: "immig", type: "bool", label: "Gause 3-Day Periodic Immigration" }
+  ],
+  M3: [
+    { key: "phi", label: "Phage adsorption phi", min: 0.001, max: 0.025, step: 0.001 },
+    { key: "lys", label: "Eclipse lysis rate (h^-1)", min: 0.3, max: 3.0, step: 0.05 },
+    { key: "burst", label: "Burst size beta (PFU/cell)", min: 10, max: 150, step: 2 },
+    { key: "mut", label: "Resistant mutant rate", min: 0, max: 0.01, step: 0.0005 }
+  ],
+  T1: [
+    { key: "c", label: "Colonization rate c", min: 0.05, max: 1.4, step: 0.02 },
+    { key: "e", label: "Local extinction rate e", min: 0.02, max: 0.8, step: 0.02 },
+    { key: "h", label: "Habitat destroyed fraction h", min: 0, max: 0.92, step: 0.02 }
+  ],
+  T2: [
+    { key: "r", label: "Intrinsic growth parameter r", min: 0.3, max: 3.6, step: 0.01 },
+    { key: "k", label: "Carrying capacity K", min: 20, max: 300, step: 5 },
+    { key: "ricker", type: "bool", label: "Use Ricker Exponential Map" }
+  ],
+  T3: [
+    { key: "ne", label: "Diploid Effective Size N_e", min: 6, max: 500, step: 2 },
+    { key: "demes", label: "Number of Demes", min: 1, max: 10, step: 1 },
+    { key: "wAA", label: "Genotype Fitness w_AA", min: 0.3, max: 1.5, step: 0.02 },
+    { key: "wAa", label: "Heterozygote Fitness w_Aa (>1 overdom.)", min: 0.3, max: 1.5, step: 0.02 },
+    { key: "waa", label: "Genotype Fitness w_aa", min: 0.3, max: 1.5, step: 0.02 },
+    { key: "m", label: "Island migration rate m", min: 0, max: 0.25, step: 0.005 }
+  ],
+  T4: [
+    { key: "n", label: "Sampled Chromosomes n", min: 4, max: 30, step: 1 },
+    { key: "ne", label: "Effective Population Size N_e", min: 50, max: 5000, step: 50 },
+    { key: "theta", label: "Mutation Parameter theta = 4*N_e*u", min: 1, max: 40, step: 0.5 }
+  ],
+  T5: [
+    { key: "demesN", label: "Number of Demes", min: 1, max: 14, step: 1 },
+    { key: "ne", label: "Deme Effective Size N_e (low = drift)", min: 6, max: 300, step: 2 },
+    { key: "sel", label: "Selection gradient strength", min: 0.02, max: 0.55, step: 0.02 },
+    { key: "m", label: "Interdeme dispersion m (Phase III)", min: 0, max: 0.15, step: 0.005 },
+    { key: "h1", label: "Local Peak 1 height", min: 0.1, max: 1.2, step: 0.05 },
+    { key: "h2", label: "Global Peak 2 height", min: 0.3, max: 1.6, step: 0.05 },
+    { key: "rug", label: "Epistatic valley ruggedness", min: 0, max: 0.9, step: 0.05 },
+    { key: "az", label: "3D Camera Azimuth (°)", min: -180, max: 180, step: 2 },
+    { key: "el", label: "3D Camera Elevation (°)", min: 12, max: 72, step: 1 }
+  ],
+  T6: [
+    { key: "presetIdx", type: "presetT6", label: "Life-History Matrix Preset" },
+    { key: "fecMult", label: "Fecundity F_j multiplier", min: 0.2, max: 2.5, step: 0.05 },
+    { key: "juvMult", label: "Juvenile / Subadult survival (TEDs)", min: 0.4, max: 1.35, step: 0.02 },
+    { key: "adultMult", label: "Adult breeder survival", min: 0.4, max: 1.20, step: 0.02 },
+    { key: "densityReg", type: "bool", label: "Beverton-Holt Recruitment Ceiling" }
+  ]
+};
+
+function renderSidebarControls() {
+  const id = APP.activeModule;
+  const isEmp = id.startsWith("E");
+  document.getElementById("simTransportBox").classList.toggle("hidden", isEmp);
+  const box = document.getElementById("moduleControlsContainer");
+
+  if (!isEmp) {
+    const schema = PARAM_SCHEMAS[id] || [];
+    const s = APP.sims[id];
+    box.innerHTML = `<div style="font-weight:600;margin-bottom:6px;">Biological Parameters &amp; Toggles</div>` +
+      schema.map(p => {
+        if (p.type === "bool") {
+          return `<label style="display:flex;align-items:center;gap:7px;margin:6px 0;cursor:pointer;">
+            <input type="checkbox" ${s[p.key] ? "checked" : ""} onchange="updateSimParam('${id}','${p.key}',this.checked,true)">
+            <span>${p.label}</span>
+          </label>`;
+        }
+        if (p.type === "presetT6") {
+          return `<div style="margin-bottom:8px;"><div class="slider-label"><span>${p.label}</span></div>
+            <select class="input-ctrl" style="width:100%;" onchange="switchT6Preset(parseInt(this.value,10))">
+              ${MATRIX_PRESETS.map((mp, mi) => `<option value="${mi}" ${s.presetIdx === mi ? "selected" : ""}>${mp.name}</option>`).join("")}
+            </select></div>`;
+        }
+        return `<div class="slider-row">
+          <div class="slider-label"><span>${p.label}</span><span class="slider-val" id="lbl_${id}_${p.key}">${Number(s[p.key]).toFixed(p.step < 0.01 ? 3 : (p.step < 1 ? 2 : 0))}</span></div>
+          <input type="range" min="${p.min}" max="${p.max}" step="${p.step}" value="${s[p.key]}" oninput="updateSimParam('${id}','${p.key}',this.value,false)">
+        </div>`;
+      }).join("");
+    return;
+  }
+
+  // Empirical Sidebar Controls
+  const e = APP.emp;
+  const maxW = Math.max(16, e.seqs.length ? e.seqs[0].seq.length : 180);
+  box.innerHTML = `
+    <div style="font-weight:600;margin-bottom:6px;">Benchmark DNA Alignments</div>
+    <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px;">
+      ${ALIGNMENT_PRESETS.map((pr, idx) => `<button type="button" class="btn btn-sm ${e.presetIdx === idx ? 'btn-primary' : ''}" style="text-align:left;white-space:normal;" onclick="loadEmpiricalPreset(${idx})">${idx + 1}. ${pr.name}</button>`).join("")}
+      <label class="btn btn-accent btn-sm" for="fastaUploadInput" style="justify-content:center;margin-top:2px;">📂 Load Custom FASTA / PHYLIP File...</label>
+      <input type="file" id="fastaUploadInput" accept=".fasta,.fa,.fas,.phy,.txt" class="hidden" onchange="uploadFastaFile(event)">
+    </div>
+
+    <div class="param-group">
+      <div style="font-weight:600;margin-bottom:4px;">Network &amp; Polymorphism Options</div>
+      <select class="input-ctrl" style="width:100%;margin-bottom:6px;" onchange="updateEmpOption('netAlg',this.value)">
+        <option value="MJ" ${e.netAlg === "MJ" ? "selected" : ""}>Bandelt et al. (1999) Median-Joining (MJ)</option>
+        <option value="MSN" ${e.netAlg === "MSN" ? "selected" : ""}>Kruskal Minimum Spanning (MSN)</option>
+        <option value="TCS" ${e.netAlg === "TCS" ? "selected" : ""}>TCS 95% Statistical Parsimony</option>
+      </select>
+      <select class="input-ctrl" style="width:100%;margin-bottom:6px;" onchange="updateEmpOption('gapMode',this.value)">
+        <option value="pairwise" ${e.gapMode === "pairwise" ? "selected" : ""}>Pairwise Gap Deletion</option>
+        <option value="complete" ${e.gapMode === "complete" ? "selected" : ""}>Complete Site Deletion</option>
+      </select>
+      <div class="slider-row">
+        <div class="slider-label"><span>MJ Homoplasy epsilon</span><span class="slider-val">${e.mjEps}</span></div>
+        <input type="range" min="0" max="3" step="1" value="${e.mjEps}" oninput="updateEmpOption('mjEps',parseInt(this.value,10))">
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer;">
+        <input type="checkbox" ${e.showMutLabels ? "checked" : ""} onchange="updateEmpOption('showMutLabels',this.checked)">
+        <span>Show edge site mutations (e.g. T19C)</span>
+      </label>
+      <button type="button" class="btn btn-sm" style="width:100%;margin-top:4px;" onclick="relaxActiveNet()">↻ Re-relax Network Force Layout</button>
+    </div>
+
+    <div class="param-group">
+      <div style="font-weight:600;margin-bottom:4px;">Bayesian Skyline MCMC (E3)</div>
+      <div class="slider-row">
+        <div class="slider-label"><span>Piecewise Skyline groups m</span><span class="slider-val">${e.bspGroups}</span></div>
+        <input type="range" min="1" max="8" step="1" value="${e.bspGroups}" onchange="updateEmpOption('bspGroups',parseInt(this.value,10))">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span>MCMC iterations</span><span class="slider-val">${e.bspSteps}</span></div>
+        <input type="range" min="500" max="4500" step="250" value="${e.bspSteps}" onchange="updateEmpOption('bspSteps',parseInt(this.value,10))">
+      </div>
+    </div>
+
+    <div class="param-group">
+      <div style="font-weight:600;margin-bottom:4px;">Sliding-Window Scan (E4)</div>
+      <div class="slider-row">
+        <div class="slider-label"><span>Window width (bp)</span><span class="slider-val">${e.winBp} bp</span></div>
+        <input type="range" min="10" max="${maxW}" step="2" value="${Math.min(maxW, e.winBp)}" oninput="updateEmpOption('winBp',parseInt(this.value,10))">
+      </div>
+      <div class="slider-row">
+        <div class="slider-label"><span>Step size (bp)</span><span class="slider-val">${e.stepBp} bp</span></div>
+        <input type="range" min="2" max="40" step="2" value="${e.stepBp}" oninput="updateEmpOption('stepBp',parseInt(this.value,10))">
+      </div>
+    </div>
+
+    <div class="param-group" style="display:flex;flex-wrap:wrap;gap:5px;">
+      <button type="button" class="btn btn-sm" onclick="exportHapSvg()">⬇ Network SVG</button>
+      <button type="button" class="btn btn-sm" onclick="exportSkylineCsv()">⬇ Skyline CSV</button>
+      <button type="button" class="btn btn-sm" onclick="exportWindowsCsv()">⬇ Windows CSV</button>
+    </div>
+    ${e.error ? `<div style="color:var(--rose);margin-top:6px;font-size:12px;">Error: ${e.error}</div>` : ""}
+  `;
+}
+
+function switchT6Preset(idx) {
+  const s = APP.sims.T6;
+  s.presetIdx = idx;
+  s.fecMult = 1.0; s.juvMult = 1.0; s.adultMult = 1.0;
+  s.nVec = MATRIX_PRESETS[idx].initN.slice();
+  s.t = 0; s.history = []; s.transitions = [];
+  recomputeEigenT6(s);
+  s.realizedLam = s.lam;
+  const tot = s.nVec.reduce((a, b) => a + b, 0);
+  pushHistory(s, 0, [tot, s.nVec[0], s.nVec.slice(Math.floor((s.nVec.length * 3) / 5)).reduce((a, b) => a + b, 0), s.lam * 100], s.r, "Decel");
+  renderWorkspaceAll();
+}
+function updateSimParam(id, key, val, isBool) {
+  const s = APP.sims[id];
+  s[key] = isBool ? Boolean(val) : parseFloat(val);
+  const lbl = document.getElementById("lbl_" + id + "_" + key);
+  if (lbl) lbl.textContent = Number(s[key]).toFixed(Math.abs(s[key]) < 0.1 ? 3 : 2);
+  if (id === "T6") recomputeEigenT6(s);
+  if (id === "T1") {
+    const nKill = Math.round(s.h * 64);
+    s.patches.forEach((p, idx) => { p.destroyed = idx < nKill; if (p.destroyed) p.occupied = false; });
+  }
+  renderWorkspaceStage();
+}
+
+function loadEmpiricalPreset(idx) {
+  APP.emp.presetIdx = idx;
+  APP.emp.datasetName = ALIGNMENT_PRESETS[idx].name;
+  APP.emp.rawText = ALIGNMENT_PRESETS[idx].fasta;
+  APP.emp.winBp = idx === 3 ? 48 : 20;
+  APP.emp.stepBp = idx === 3 ? 12 : 5;
+  recomputeEmpiricalAll();
+  renderWorkspaceAll();
+}
+
+function uploadFastaFile(ev) {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    APP.emp.presetIdx = -1;
+    APP.emp.datasetName = f.name;
+    APP.emp.rawText = String(reader.result || "");
+    recomputeEmpiricalAll();
+    renderWorkspaceAll();
+    setStatus("Loaded empirical alignment " + f.name);
+  };
+  reader.readAsText(f);
+}
+
+function onFastaEdited() {
+  APP.emp.rawText = document.getElementById("fastaEditor").value;
+  recomputeEmpiricalAll();
+  renderEmpiricalPanels();
+}
+
+function updateEmpOption(key, val) {
+  APP.emp[key] = val;
+  if (key !== "showMutLabels") recomputeEmpiricalAll();
+  renderWorkspaceAll();
+}
+
+function relaxActiveNet() {
+  if (APP.emp.net) {
+    relaxHaplotypeLayout(APP.emp.net, 160);
+    renderHaplotypeCanvas();
+  }
+}
+
+function renderWorkspaceAll() {
+  const id = APP.activeModule;
+  const meta = MODULES[id];
+  document.getElementById("wsModCode").textContent = "[" + meta.code + "]";
+  document.getElementById("wsModTitle").textContent = meta.title;
+  document.getElementById("wsModOrg").textContent = "(" + meta.organisms + ")";
+  const cl = document.getElementById("wsCitationLink");
+  cl.textContent = meta.citeLabel + " ↗";
+  cl.href = meta.citeUrl;
+
+  renderSidebarControls();
+  renderWorkspaceStage();
+}
+
+function renderWorkspaceStage() {
+  const id = APP.activeModule;
+  const isEmp = id.startsWith("E");
+  const ph = PHASES[getModulePhaseKey(id)] || PHASES.Exp;
+  const badge = document.getElementById("activePhaseBadge");
+  badge.textContent = ph.label;
+  badge.style.background = ph.color;
+
+  document.getElementById("simTabBar").classList.toggle("hidden", isEmp);
+  document.getElementById("simKpiStrip").classList.toggle("hidden", isEmp);
+  document.getElementById("empTabBar").classList.toggle("hidden", !isEmp);
+
+  ["simSpatialPanel", "simTimeSeriesPanel", "simPhasePanel", "simEquationsPanel",
+   "empE1Panel", "empE2Panel", "empE3Panel", "empE4Panel"].forEach(pid => {
+    document.getElementById(pid).classList.add("hidden");
+  });
+
+  if (isEmp) {
+    document.querySelectorAll("#empTabBar .tab-btn").forEach(b => {
+      b.classList.toggle("active", b.getAttribute("data-emptab") === id);
+    });
+    renderEmpiricalPanels();
+    return;
+  }
+
+  document.querySelectorAll("#simTabBar .tab-btn").forEach(b => {
+    b.classList.toggle("active", b.getAttribute("data-simtab") === APP.simTab);
+  });
+
+  // Dynamical KPI Strip
+  const s = APP.sims[id];
+  const last = s.history[s.history.length - 1];
+  const kpiHtml = [
+    { l: "Time (" + MODULES[id].unit + ")", v: last.t.toFixed(id === "V3" || id === "I1" || id === "I3" || id === "T2" || id === "T3" || id === "T4" || id === "T5" || id === "T6" ? 0 : 2) },
+    ...s.seriesNames.slice(0, 3).map((nm, idx) => ({ l: nm, v: (last.values[idx] !== undefined ? last.values[idx].toFixed(2) : "—") })),
+    { l: "Per-Capita Growth", v: (last.pcg >= 0 ? "+" : "") + last.pcg.toFixed(3) }
+  ].map(k => `<div class="kpi-card"><div class="kpi-label">${k.l}</div><div class="kpi-val">${k.v}</div></div>`).join("");
+  document.getElementById("simKpiStrip").innerHTML = kpiHtml;
+
+  if (APP.simTab === "spatial") {
+    document.getElementById("simSpatialPanel").classList.remove("hidden");
+    renderSpatialCanvas();
+  } else if (APP.simTab === "timeseries") {
+    document.getElementById("simTimeSeriesPanel").classList.remove("hidden");
+    const cols = ["#4ade80", "#fb923c", "#38bdf8", "#f472b6"];
+    const ser = s.seriesNames.map((nm, idx) => ({
+      name: nm, color: cols[idx % cols.length], pts: s.history.map(r => [r.t, r.values[idx] || 0]), w: 2.1
+    }));
+    if (id === "T3") {
+      s.tracks.forEach((tr, di) => ser.push({ name: "Deme " + (di + 1), color: cols[(di + 1) % cols.length], pts: tr.map((v, g) => [g, v]), w: 1.1 }));
+    }
+    const vlines = s.transitions.slice(-14).map(tr => ({ x: tr.t, color: "rgba(250,204,21,0.42)" }));
+    drawSciPlot("tsMainCanvas", { series: ser, vlines });
+    drawSciPlot("tsRateCanvas", {
+      series: [{ name: "Per-capita rate vs Primary N", color: "#a78bfa", pts: s.history.map(r => [r.values[0] || 0, r.pcg]), w: 1.9 }]
+    });
+  } else if (APP.simTab === "phase") {
+    document.getElementById("simPhasePanel").classList.remove("hidden");
+    const titleEl = document.getElementById("diagTitle");
+    if (id === "T2") {
+      titleEl.textContent = "Asymptotic Bifurcation Orbit Diagram across Intrinsic Growth r";
+      const pts = [], rMax = s.ricker ? 4.0 : 3.0;
+      for (let st = 0; st < 115; st++) {
+        const r = 0.5 + (rMax - 0.5) * (st / 114);
+        let x = 0.25 * s.k;
+        for (let b = 0; b < 100; b++) {
+          x = s.ricker ? x * Math.exp(r * (1 - x / s.k)) : Math.max(0, x * (1 + r * (1 - x / s.k)));
+          if (b >= 76) pts.push([r, x]);
+        }
+      }
+      drawSciPlot("diagCanvas", { series: [{ name: "Orbit Attractors N*", color: "#38bdf8", pts, dots: true, r: 1.6 }], vlines: [{ x: s.r, color: "#facc15" }] });
+    } else if (id === "T5") {
+      titleEl.textContent = "2D Topographic Phase Map: Deme Trajectories (X, Y) Climbing Peak 1 (0.24, 0.26) -> Peak 2 (0.76, 0.74)";
+      const cols = ["#4ade80", "#38bdf8", "#fb923c", "#f472b6", "#facc15"];
+      const ser = s.demes.map((d, di) => ({ name: "Deme " + (di + 1), color: cols[di % cols.length], pts: d.trail.map(t => [t[0], t[1]]), w: 1.9 }));
+      ser.push({ name: "Adaptive Peaks", color: "#fef08a", pts: [[0.24, 0.26], [0.76, 0.74]], dots: true, r: 6 });
+      drawSciPlot("diagCanvas", { series: ser });
+    } else if (id === "T6") {
+      recomputeEigenT6(s);
+      titleEl.textContent = "Conservation Leverage Profile: Summed Stage Elasticity E_j (%) vs. Stable Stage Share w_j (%)";
+      const bars = s.stageEl.map((el, j) => ({ x: j + 1, y: el * 100, w: 0.52, color: "#fb923c" }));
+      const wPts = s.w.map((wj, j) => [j + 1, wj * 100]);
+      drawSciPlot("diagCanvas", { bars, series: [{ name: "Stable Stage Share w_j (%)", color: "#38bdf8", pts: wPts, w: 2.3 }] });
+    } else if (id === "T4") {
+      titleEl.textContent = "Unfolded Site Frequency Spectrum (SFS): Simulated Branch Mutations vs. Neutral theta / i";
+      const reps = Math.max(1, s.t);
+      const bars = s.cumSfs.map((c, idx) => ({ x: idx + 1, y: c / reps, w: 0.58, color: "#38bdf8" }));
+      const exp = s.cumSfs.map((_, idx) => [idx + 1, s.theta / (idx + 1)]);
+      drawSciPlot("diagCanvas", { bars, series: [{ name: "Neutral Expectation theta / i", color: "#facc15", pts: exp, w: 2.3 }] });
+    } else {
+      titleEl.textContent = "2D State-Space Phase Portrait: " + s.seriesNames[0] + " (X) vs. " + (s.seriesNames[1] || "Rate") + " (Y)";
+      const ser = [
+        { name: "Phase Trajectory", color: "#4ade80", pts: s.history.map(r => [r.values[0], r.values[1] ?? r.pcg]), w: 2.1 },
+        { name: "Current State", color: "#facc15", pts: [[last.values[0], last.values[1] ?? last.pcg]], dots: true, r: 5 }
+      ];
+      const vlines = [];
+      if (id === "V1") {
+        const nc = [];
+        for (let i = 1; i <= 85; i++) {
+          const h = s.kH * (i / 85), fh = evalHolling(s.holling, h, s.a, s.th);
+          if (fh > 1e-6) { const lIso = (s.rH * h * (1 - h / s.kH)) / fh; if (lIso >= 0) nc.push([h, lIso]); }
+        }
+        ser.push({ name: "Prey Nullcline (dH/dt=0)", color: "#38bdf8", pts: nc, w: 1.6 });
+        const den = s.a * (s.eff - s.mL * s.th);
+        if (den > 1e-6) vlines.push({ x: s.mL / den, color: "#f87171" });
+      }
+      drawSciPlot("diagCanvas", { series: ser, vlines });
+    }
+  } else {
+    document.getElementById("simEquationsPanel").classList.remove("hidden");
+    const m = MODULES[id];
+    document.getElementById("eqPlainBox").textContent = m.equations;
+    document.getElementById("eqSummaryText").textContent = m.summary;
+    const a = document.getElementById("eqPaperAnchor");
+    a.textContent = m.citeLabel + " ↗";
+    a.href = m.citeUrl;
+  }
+}
+
+function renderEmpiricalPanels() {
+  const id = APP.activeModule, e = APP.emp, st = e.stats;
+  if (!st) return;
+
+  if (id === "E1") {
+    document.getElementById("empE1Panel").classList.remove("hidden");
+    const ed = document.getElementById("fastaEditor");
+    if (document.activeElement !== ed) ed.value = e.rawText;
+
+    const ref = e.seqs[0].seq, showL = Math.min(90, ref.length);
+    document.getElementById("dnaStripBox").innerHTML = e.seqs.slice(0, 16).map((r, rIdx) => {
+      const lbl = (r.id + " [" + r.pop + "]").padEnd(24, " ").slice(0, 24);
+      let row = lbl + " ";
+      for (let c = 0; c < showL; c++) {
+        const ch = r.seq[c];
+        if (rIdx > 0 && ch === ref[c]) row += `<span class="b-dot">.</span>`;
+        else row += `<span class="b-${ch}">${ch}</span>`;
+      }
+      return row;
+    }).join("\n");
+
+    document.getElementById("e1KpiGrid").innerHTML = [
+      ["Sequences (n) / Length", `${st.n} / ${st.L} bp (GC ${st.gcPct.toFixed(1)}%)`],
+      ["Segregating Sites S", `${st.S} (Informative ${st.parsInf}, Singletons ${st.singletons})`],
+      ["Haplotypes K / Hd", `K = ${st.K}  |  Hd = ${st.Hd.toFixed(4)}`],
+      ["Nucleotide Diversity pi", `${st.pi.toFixed(5)} / site  (k = ${st.kHat.toFixed(3)})`],
+      ["Watterson's theta_W", `${st.thetaSite.toFixed(5)} / site  (${st.thetaLocus.toFixed(3)} / locus)`],
+      ["Tajima's D (1989)", st.tajimaD !== null ? `${st.tajimaD >= 0 ? "+" : ""}${st.tajimaD.toFixed(4)} (p = ${st.pNorm.toFixed(4)})` : "N/A"],
+      ["Fu & Li's D* / F*", st.fuLiD !== null ? `${st.fuLiD.toFixed(3)} / ${st.fuLiF.toFixed(3)}` : "N/A"],
+      ["Mismatch Raggedness r", st.rag.toFixed(5)]
+    ].map(([l, v]) => `<div class="kpi-card"><div class="kpi-label">${l}</div><div class="kpi-val" style="font-size:13px;">${v}</div></div>`).join("");
+
+    document.getElementById("e1FstTable").innerHTML = st.popDiv.length ? `<table class="data-table">
+      <thead><tr><th>Deme Pair</th><th>pi_A</th><th>pi_B</th><th>D_XY</th><th>D_a (net)</th><th>Hudson F_ST</th><th>Migrants Nm</th></tr></thead>
+      <tbody>${st.popDiv.map(d => `<tr><td>${d.popA} vs ${d.popB}</td><td class="mono">${d.piA.toFixed(5)}</td><td class="mono">${d.piB.toFixed(5)}</td><td class="mono">${d.dxy.toFixed(5)}</td><td class="mono">${d.da.toFixed(5)}</td><td class="mono"><strong>${d.fst.toFixed(4)}</strong></td><td class="mono">${d.nm.toFixed(2)}</td></tr>`).join("")}</tbody>
+    </table>` : `<div style="padding:8px;color:var(--text-muted);">Single deme detected — add '|PopB' header tags to compute F_ST.</div>`;
+
+    document.getElementById("e1LdTable").innerHTML = st.ldPairs.length ? `<table class="data-table">
+      <thead><tr><th>Site A</th><th>Site B</th><th>Distance (bp)</th><th>r²</th><th>|D'|</th></tr></thead>
+      <tbody>${st.ldPairs.slice(0, 14).map(p => `<tr><td>bp ${p.a}</td><td>bp ${p.b}</td><td class="mono">${p.dist}</td><td class="mono">${p.r2.toFixed(4)}</td><td class="mono">${p.dp.toFixed(4)}</td></tr>`).join("")}</tbody>
+    </table>` : `<div style="padding:8px;color:var(--text-muted);">Fewer than 2 parsimony-informative biallelic sites for LD matrix.</div>`;
+  } else if (id === "E2") {
+    document.getElementById("empE2Panel").classList.remove("hidden");
+    const net = e.net;
+    const pal = ["#38bdf8", "#fb923c", "#34d399", "#a78bfa", "#facc15", "#f43f5e"];
+    document.getElementById("e2SummaryBar").innerHTML = `<span><strong>${net.alg === "MJ" ? "Bandelt Median-Joining Network" : (net.alg === "MSN" ? "Kruskal Minimum Spanning Network" : "TCS 95% Parsimony Network")}</strong></span>
+      <span style="color:var(--text-muted);">Sampled Haplotypes: ${net.nodes.filter(n => !n.mv).length} | Median Vectors: ${net.nodes.filter(n => n.mv).length} | Edges: ${net.edges.length}</span>`;
+    document.getElementById("e2LegendRow").innerHTML = net.pops.map((p, i) => `<span style="color:${pal[i % pal.length]};font-weight:600;">● ${p}</span>`).join("") +
+      `<span style="color:#ef4444;font-weight:600;">◆ Inferred Median Vector (mv)</span>`;
+    renderHaplotypeCanvas();
+    document.getElementById("e2HapTable").innerHTML = `<table class="data-table">
+      <thead><tr><th>Haplotype</th><th>Count n</th><th>Member Sequence IDs</th></tr></thead>
+      <tbody>${net.nodes.filter(n => !n.mv).map(n => `<tr><td class="mono"><strong>${n.label}</strong></td><td class="mono">${n.count}</td><td>${n.members.join(", ")}</td></tr>`).join("")}</tbody>
+    </table>`;
+  } else if (id === "E3") {
+    document.getElementById("empE3Panel").classList.remove("hidden");
+    const sky = e.sky;
+    if (!sky) return;
+    const ex = sky.expansion;
+    document.getElementById("e3HeaderStats").innerHTML = [
+      ["Demographic Trajectory", sky.trend],
+      ["T_MRCA (Calibrated)", `${sky.tmrcaScaled.toFixed(0)} yr  (${sky.tmrcaSubs.toFixed(5)} subs/site)`],
+      ["Generalized Skyline AICc", `${sky.aicc.toFixed(2)}  (MCMC accept ${(sky.accRate * 100).toFixed(1)}%)`],
+      ["Rogers-Harpending tau", `tau = ${ex.tau.toFixed(3)}  (theta_0=${ex.theta0.toFixed(2)} -> theta_1=${ex.theta1.toFixed(1)})`],
+      ["Wave Goodness-of-Fit SSD", `SSD_exp = ${ex.ssdExp.toFixed(5)} vs SSD_const = ${ex.ssdConst.toFixed(5)}`]
+    ].map(([l, v]) => `<div class="kpi-card"><div class="kpi-label">${l}</div><div class="kpi-val" style="font-size:12.5px;">${v}</div></div>`).join("");
+
+    drawSciPlot("skylineCanvas", {
+      bands: [{ name: "95% Credible Ribbon", fill: "rgba(56,189,248,0.22)", legendColor: "#38bdf8", pts: sky.grid.map(g => [g.tScaled, g.lo, g.hi]) }],
+      series: [
+        { name: "BSP Posterior Median N_e(t)", color: "#38bdf8", pts: sky.grid.map(g => [g.tScaled, g.med]), w: 2.5 },
+        { name: "Generalized Skyline (AICc)", color: "#facc15", pts: sky.grid.map(g => [g.tScaled, g.genNe]), w: 1.7 }
+      ]
+    });
+
+    drawSciPlot("expansionWaveCanvas", {
+      bars: ex.obsF.map((f, d) => ({ x: d, y: f, w: 0.56, color: "rgba(96,165,250,0.68)" })),
+      series: [
+        { name: "Fitted Sudden-Expansion Wave F_i(tau)", color: "#4ade80", pts: ex.fitWave.map((f, d) => [d, f]), w: 2.4 },
+        { name: "Constant-Size Equilibrium Geometric", color: "#f87171", pts: ex.constWave.map((f, d) => [d, f]), w: 1.7 }
+      ]
+    });
+
+    document.getElementById("e3IntervalsTable").innerHTML = `<table class="data-table">
+      <thead><tr><th>Coalescent Interval</th><th>Lineages k_i</th><th>t_start (subs/site)</th><th>t_end (subs/site)</th><th>Duration du_i</th><th>Classic Skyline theta_i</th></tr></thead>
+      <tbody>${sky.intervals.map(iv => `<tr><td>#${iv.idx}</td><td class="mono">${iv.k}</td><td class="mono">${iv.tStart.toFixed(6)}</td><td class="mono">${iv.tEnd.toFixed(6)}</td><td class="mono">${iv.dur.toFixed(6)}</td><td class="mono">${iv.classicTheta.toFixed(6)}</td></tr>`).join("")}</tbody>
+    </table>`;
+  } else if (id === "E4") {
+    document.getElementById("empE4Panel").classList.remove("hidden");
+    const sc = e.scan;
+    if (!sc) return;
+    document.getElementById("e4SummaryLine").textContent = `Sliding-Window Neutrality & Divergence Scan: ${sc.windows.length} windows (Window = ${sc.W} bp, Step = ${sc.S} bp across ${sc.L} bp)`;
+    drawSciPlot("swDivCanvas", {
+      series: [
+        { name: "pi / site", color: "#38bdf8", pts: sc.windows.map(w => [w.mid, w.pi]), w: 2.2 },
+        { name: "theta_W / site", color: "#facc15", pts: sc.windows.map(w => [w.mid, w.thW]), w: 1.8 },
+        { name: "Mean D_XY", color: "#f472b6", pts: sc.windows.map(w => [w.mid, w.dxy]), w: 1.6 }
+      ]
+    });
+    drawSciPlot("swNeutCanvas", {
+      series: [
+        { name: "Tajima's D(w)", color: "#4ade80", pts: sc.windows.map(w => [w.mid, w.td]), w: 2.3 },
+        { name: "Fu & Li's D*(w)", color: "#fb923c", pts: sc.windows.map(w => [w.mid, w.fld]), w: 1.7 }
+      ],
+      hlines: [
+        { y: 0, color: "rgba(148,163,184,0.65)" },
+        { y: 1.96, color: "rgba(248,113,113,0.55)" },
+        { y: -1.96, color: "rgba(56,189,248,0.55)" }
+      ]
+    });
+    drawSciPlot("swFstCanvas", {
+      series: [{ name: "Mean Hudson F_ST(w)", color: "#a78bfa", pts: sc.windows.map(w => [w.mid, w.fst]), w: 2.2 }]
+    });
+    document.getElementById("e4WindowsTable").innerHTML = `<table class="data-table">
+      <thead><tr><th>Window (bp)</th><th>S</th><th>pi</th><th>theta_W</th><th>Tajima's D</th><th>Fu &amp; Li D*</th><th>Hudson F_ST</th><th>Regime Classification</th></tr></thead>
+      <tbody>${sc.windows.map(w => {
+        const col = w.td <= -1.65 ? "#38bdf8" : ((w.td >= 1.65 || w.fst >= 0.55) ? "#facc15" : "#98abc4");
+        return `<tr><td class="mono">${w.start}..${w.end}</td><td class="mono">${w.segS}</td><td class="mono">${w.pi.toFixed(4)}</td><td class="mono">${w.thW.toFixed(4)}</td><td class="mono"><strong>${w.td >= 0 ? "+" : ""}${w.td.toFixed(3)}</strong></td><td class="mono">${w.fld >= 0 ? "+" : ""}${w.fld.toFixed(3)}</td><td class="mono">${w.fst.toFixed(3)}</td><td style="color:${col};font-weight:600;">${w.flag}</td></tr>`;
+      }).join("")}</tbody>
+    </table>`;
+  }
+}
+
+/* =========================================================================
+   10. WORKSET ("SAVE GAME") SLOTS & FILE DOWNLOAD EXPORTERS
+   ========================================================================= */
+function serializeWorkset() {
+  return JSON.stringify({
+    format: "popbio-studio-workset-v1.1",
+    savedAt: new Date().toISOString().slice(0, 19) + "Z",
+    worksetTitle: APP.worksetTitle,
+    studyNotes: APP.studyNotes,
+    activeModule: APP.activeModule,
+    sims: APP.sims,
+    emp: {
+      presetIdx: APP.emp.presetIdx, datasetName: APP.emp.datasetName, rawText: APP.emp.rawText,
+      gapMode: APP.emp.gapMode, netAlg: APP.emp.netAlg, mjEps: APP.emp.mjEps,
+      showMutLabels: APP.emp.showMutLabels, bspGroups: APP.emp.bspGroups,
+      bspSteps: APP.emp.bspSteps, winBp: APP.emp.winBp, stepBp: APP.emp.stepBp
+    }
+  });
+}
+
+function restoreWorksetPayload(jsonStr) {
+  const data = JSON.parse(jsonStr);
+  APP.worksetTitle = data.worksetTitle || APP.worksetTitle;
+  APP.studyNotes = data.studyNotes || APP.studyNotes;
+  document.getElementById("worksetTitleInput").value = APP.worksetTitle;
+  document.getElementById("worksetNotesInput").value = APP.studyNotes;
+  if (data.sims) {
+    Object.keys(data.sims).forEach(k => {
+      if (APP.sims[k]) {
+        APP.sims[k] = data.sims[k];
+        APP.sims[k].rng = new SimRng((data.sims[k].rng && data.sims[k].rng.state) || 12345);
+      }
+    });
+  }
+  if (data.emp) {
+    Object.assign(APP.emp, data.emp);
+    recomputeEmpiricalAll();
+  }
+  if (data.activeModule && MODULES[data.activeModule]) {
+    launchModule(data.activeModule);
+  } else {
+    renderHubCards();
+  }
+}
+
+function readSlotMap() {
+  try {
+    const raw = localStorage.getItem("popbio_studio_slots_v11");
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+  return Object.assign({}, APP.memorySlots);
+}
+
+function writeSlotMap(map) {
+  APP.memorySlots = Object.assign({}, map);
+  try {
+    localStorage.setItem("popbio_studio_slots_v11", JSON.stringify(map));
+  } catch (_) {}
+}
+
+function syncWorksetMeta() {
+  APP.worksetTitle = document.getElementById("worksetTitleInput").value;
+  APP.studyNotes = document.getElementById("worksetNotesInput").value;
+}
+
+function saveSlotByName(name) {
+  syncWorksetMeta();
+  const map = readSlotMap();
+  const payload = serializeWorkset();
+  map[name] = {
+    name,
+    title: APP.worksetTitle,
+    activeModule: APP.activeModule,
+    savedAt: new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC",
+    payload
+  };
+  writeSlotMap(map);
+  renderSlotsTable();
+  setStatus("Saved Workset checkpoint to slot '" + name + "'.");
+}
+
+function saveNamedSlot() {
+  const nm = (document.getElementById("slotNameInput").value || "Slot_1").trim() || "Slot_1";
+  saveSlotByName(nm);
+}
+function quickSaveSlot() { saveSlotByName("Quicksave"); }
+function quickLoadSlot() { loadNamedSlot("Quicksave"); }
+
+function loadNamedSlot(name) {
+  const map = readSlotMap();
+  if (!map[name]) {
+    setStatus("No saved checkpoint named '" + name + "' yet — press Quicksave (F5) first.");
+    return;
+  }
+  try {
+    restoreWorksetPayload(map[name].payload);
+    setStatus("Restored Workset checkpoint '" + name + "'.");
+  } catch (err) {
+    setStatus("Failed restoring slot: " + err.message);
+  }
+}
+
+function deleteNamedSlot(name) {
+  const map = readSlotMap();
+  delete map[name];
+  writeSlotMap(map);
+  renderSlotsTable();
+  setStatus("Deleted checkpoint slot '" + name + "'.");
+}
+
+function renderSlotsTable() {
+  const map = readSlotMap();
+  const keys = Object.keys(map);
+  const el = document.getElementById("savedSlotsContainer");
+  if (!keys.length) {
+    el.innerHTML = `<div style="color:var(--text-dim);font-style:italic;font-size:12px;">No saved checkpoints yet — click 'Save Checkpoint Slot' or 'Quicksave (F5)' to snapshot all 19 modules.</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="table-scroll"><table class="data-table">
+    <thead><tr><th>Slot</th><th>Workset Title</th><th>Active Module</th><th>Saved</th><th>Actions</th></tr></thead>
+    <tbody>${keys.map(k => {
+      const s = map[k];
+      return `<tr><td class="mono"><strong>${s.name}</strong></td><td>${s.title}</td><td class="mono">${s.activeModule}</td><td>${s.savedAt}</td>
+        <td><button type="button" class="btn btn-primary btn-sm" onclick="loadNamedSlot('${s.name.replace(/'/g, "")}')">Resume</button>
+            <button type="button" class="btn btn-sm" onclick="deleteNamedSlot('${s.name.replace(/'/g, "")}')">Delete</button></td></tr>`;
+    }).join("")}</tbody>
+  </table></div>`;
+}
+
+function triggerDownload(filename, mime, content) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 150);
+}
+
+function exportWorksetJson() {
+  syncWorksetMeta();
+  triggerDownload("session.popworkset.json", "application/json", serializeWorkset());
+  setStatus("Downloaded portable session.popworkset.json.");
+}
+
+function importWorksetJson(ev) {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      restoreWorksetPayload(String(r.result || ""));
+      setStatus("Imported Workset " + f.name);
+    } catch (err) {
+      setStatus("Invalid Workset file: " + err.message);
+    }
+  };
+  r.readAsText(f);
+}
+
+function downloadModuleCsv() {
+  const id = APP.activeModule, s = APP.sims[id];
+  if (!s) return;
+  let csv = "time," + s.seriesNames.join(",") + ",per_capita_growth,growth_phase\n";
+  s.history.forEach(r => {
+    csv += r.t.toFixed(4) + "," + s.seriesNames.map((_, i) => (r.values[i] || 0).toFixed(6)).join(",") + "," + r.pcg.toFixed(6) + ",\"" + PHASES[r.phase].label + "\"\n";
+  });
+  triggerDownload(id.toLowerCase() + "_timeseries.csv", "text/csv", csv);
+  setStatus("Exported CSV time-series for " + id);
+}
+
+function exportSkylineCsv() {
+  const sky = APP.emp.sky;
+  if (!sky) return;
+  let csv = "time_subs_per_site,scaled_time,bsp_ne_median,bsp_ne_lower_95,bsp_ne_upper_95,generalized_skyline_ne\n";
+  sky.grid.forEach(g => { csv += `${g.tSubs.toFixed(8)},${g.tScaled.toFixed(2)},${g.med.toFixed(2)},${g.lo.toFixed(2)},${g.hi.toFixed(2)},${g.genNe.toFixed(2)}\n`; });
+  triggerDownload("bayesian_skyline.csv", "text/csv", csv);
+  setStatus("Exported Bayesian Skyline CSV.");
+}
+
+function exportWindowsCsv() {
+  const sc = APP.emp.scan;
+  if (!sc) return;
+  let csv = "window_index,start_bp,end_bp,midpoint_bp,S,pi,theta_W,tajimas_d,fu_li_d_star,hudson_fst,d_xy,regime\n";
+  sc.windows.forEach(w => { csv += `${w.idx},${w.start},${w.end},${w.mid.toFixed(1)},${w.segS},${w.pi.toFixed(6)},${w.thW.toFixed(6)},${w.td.toFixed(4)},${w.fld.toFixed(4)},${w.fst.toFixed(4)},${w.dxy.toFixed(6)},"${w.flag}"\n`; });
+  triggerDownload("sliding_window_scan.csv", "text/csv", csv);
+  setStatus("Exported Sliding-Window Neutrality CSV.");
+}
+
+function exportHapSvg() {
+  const net = APP.emp.net;
+  if (!net) return;
+  const W = 960, H = 680;
+  const pal = ["#38bdf8", "#fb923c", "#34d399", "#a78bfa", "#facc15", "#f43f5e"];
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="100%" height="100%" fill="#0c1320"/>`;
+  net.edges.forEach(e => {
+    const u = net.nodes[e.u], v = net.nodes[e.v];
+    svg += `<line x1="${(u.x * W).toFixed(1)}" y1="${(u.y * H).toFixed(1)}" x2="${(v.x * W).toFixed(1)}" y2="${(v.y * H).toFixed(1)}" stroke="#94a3b8" stroke-width="2.2"/>`;
+  });
+  net.nodes.forEach(nd => {
+    const cx = nd.x * W, cy = nd.y * H;
+    if (nd.mv) svg += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="6.5" fill="#ef4444" stroke="#fff" stroke-width="1.5"/>`;
+    else {
+      const r = 11 + 5.5 * Math.sqrt(nd.count);
+      const pidx = Math.max(0, nd.popCounts.findIndex(c => c > 0));
+      svg += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="${pal[pidx % pal.length]}" stroke="#fff" stroke-width="2"/>`;
+      svg += `<text x="${cx.toFixed(1)}" y="${(cy - r - 6).toFixed(1)}" text-anchor="middle" fill="#f8fafc" font-family="sans-serif" font-size="12" font-weight="bold">${nd.label} (n=${nd.count})</text>`;
+    }
+  });
+  svg += `</svg>`;
+  triggerDownload("haplotype_network.svg", "image/svg+xml", svg);
+  setStatus("Exported Haplotype Network SVG.");
+}
+
+function toggleHelpModal(show) {
+  document.getElementById("helpModal").classList.toggle("open", Boolean(show));
+}
+
+/* Pointer Hover & Haplotype Drag Listeners */
+function bindCanvasInteractions() {
+  ["tsMainCanvas", "tsRateCanvas", "diagCanvas", "skylineCanvas", "expansionWaveCanvas", "swDivCanvas", "swNeutCanvas", "swFstCanvas"].forEach(cid => {
+    const el = document.getElementById(cid);
+    if (!el) return;
+    el.addEventListener("mousemove", ev => {
+      const r = el.getBoundingClientRect();
+      APP.hoverPos[cid] = { x: ev.clientX - r.left, y: ev.clientY - r.top };
+      if (!APP.playing) renderWorkspaceStage();
+    });
+    el.addEventListener("mouseleave", () => {
+      delete APP.hoverPos[cid];
+      if (!APP.playing) renderWorkspaceStage();
+    });
+  });
+
+  const hc = document.getElementById("hapNetCanvas");
+  const getRel = ev => {
+    const r = hc.getBoundingClientRect();
+    const cx = (ev.touches && ev.touches[0] ? ev.touches[0].clientX : ev.clientX) - r.left;
+    const cy = (ev.touches && ev.touches[0] ? ev.touches[0].clientY : ev.clientY) - r.top;
+    return { x: cx / Math.max(1, r.width), y: cy / Math.max(1, r.height), px: cx, py: cy, w: r.width, h: r.height };
+  };
+  const startDrag = ev => {
+    if (!APP.emp.net) return;
+    const pos = getRel(ev);
+    let best = null, bestD = 30;
+    APP.emp.net.nodes.forEach(nd => {
+      const d = Math.hypot(nd.x * pos.w - pos.px, nd.y * pos.h - pos.py);
+      if (d < bestD) { bestD = d; best = nd; }
+    });
+    if (best) { APP.dragNode = best; ev.preventDefault(); }
+  };
+  const moveDrag = ev => {
+    if (!APP.dragNode) return;
+    const pos = getRel(ev);
+    APP.dragNode.x = Math.min(0.92, Math.max(0.08, pos.x));
+    APP.dragNode.y = Math.min(0.92, Math.max(0.08, pos.y));
+    renderHaplotypeCanvas();
+    ev.preventDefault();
+  };
+  const endDrag = () => { APP.dragNode = null; };
+  const scEl = document.getElementById("spatialCanvas");
+  let rotDrag = null;
+  scEl.addEventListener("mousedown", ev => {
+    if (APP.activeModule === "T5") rotDrag = { x: ev.clientX, y: ev.clientY, az: APP.sims.T5.az, el: APP.sims.T5.el };
+  });
+  window.addEventListener("mousemove", ev => {
+    if (!rotDrag || APP.activeModule !== "T5") return;
+    APP.sims.T5.az = ((rotDrag.az + (ev.clientX - rotDrag.x) * 0.45 + 180) % 360) - 180;
+    APP.sims.T5.el = Math.max(12, Math.min(72, rotDrag.el + (ev.clientY - rotDrag.y) * 0.35));
+    renderWorkspaceAll();
+  });
+  window.addEventListener("mouseup", () => { rotDrag = null; });
+  hc.addEventListener("mousedown", startDrag);
+  hc.addEventListener("touchstart", startDrag, { passive: false });
+  window.addEventListener("mousemove", moveDrag);
+  window.addEventListener("touchmove", moveDrag, { passive: false });
+  window.addEventListener("mouseup", endDrag);
+  window.addEventListener("touchend", endDrag);
+}
+
+/* Global Hotkeys & Main Animation Loop */
+window.addEventListener("keydown", ev => {
+  const tag = (ev.target && ev.target.tagName) || "";
+  const typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+  if (ev.code === "Space" && !typing && APP.screen === "workspace") {
+    ev.preventDefault();
+    togglePlay();
+  } else if ((ev.key === "h" || ev.key === "H") && !typing) {
+    switchScreen("hub");
+  } else if (ev.key === "F5") {
+    ev.preventDefault();
+    quickSaveSlot();
+  } else if (ev.key === "F9") {
+    ev.preventDefault();
+    quickLoadSlot();
+  }
+});
+
+window.addEventListener("resize", () => {
+  if (APP.screen === "workspace") renderWorkspaceStage();
+});
+
+function mainAnimationLoop() {
+  if (APP.playing && APP.screen === "workspace" && !APP.activeModule.startsWith("E")) {
+    for (let i = 0; i < APP.stepsPerFrame; i++) stepSimulation(APP.activeModule);
+    renderWorkspaceStage();
+  }
+  requestAnimationFrame(mainAnimationLoop);
+}
+
+window.onload = function initPopBioStudio() {
+  document.getElementById("worksetTitleInput").value = APP.worksetTitle;
+  document.getElementById("worksetNotesInput").value = APP.studyNotes;
+  recomputeEmpiricalAll();
+  populateQuickSelectAndPills();
+  renderHubCards();
+  renderSlotsTable();
+  bindCanvasInteractions();
+  requestAnimationFrame(mainAnimationLoop);
+};
+</script>
+</body>
+</html>
