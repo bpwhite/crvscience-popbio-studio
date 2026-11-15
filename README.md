@@ -1,5 +1,7 @@
 # PopBio Studio (`popbio-studio` v1.2.0)
 
+![PopBio Studio — Sewall Wright 3D Adaptive Landscape, Bayesian Skyline & Haplotype Network Workstation](validation/headless_screenshot.png)
+
 Native safe-Rust (`#![forbid(unsafe_code)]`) educational population biology, theoretical evolutionary genetics, Bayesian Skyline demographic inference, sliding-window neutrality, and empirical haplotype network desktop workstation built with `eframe`/`egui` `0.31`, a built-in hover-crosshair scientific plotting engine, and bundled SQLite WAL (`rusqlite`).
 
 ## Quick Start

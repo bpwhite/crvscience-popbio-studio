@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
-use popbio_studio::gui::PopBioApp;
+use popbio_studio::gui::{render_headless_screenshot, PopBioApp};
 use popbio_studio::haplotype_network::{build_haplotype_network, NetworkAlgorithm};
 use popbio_studio::model::ModuleId;
 use popbio_studio::popgen_alignment::{
@@ -28,6 +28,14 @@ struct Cli {
     /// Restore a saved `.popworkset.json` Workset file on startup
     #[arg(long)]
     load_workset: Option<PathBuf>,
+
+    /// Render a 1600x1000 offscreen GPU screenshot to PNG and exit without opening a window
+    #[arg(long, value_name = "OUT_PATH")]
+    headless_screenshot: Option<PathBuf>,
+
+    /// Select screenshot view (1 = Sewall Wright 3D Landscape, 2 = Bayesian Skyline, 3 = Haplotype Network)
+    #[arg(long, default_value_t = 1)]
+    screenshot_view: u8,
 
     #[command(subcommand)]
     command: Option<Commands>,
@@ -100,6 +108,16 @@ enum Commands {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
+
+    if let Some(out_path) = &cli.headless_screenshot {
+        render_headless_screenshot(out_path, cli.screenshot_view)?;
+        println!(
+            "Saved {} (1600x1000 RGBA offscreen screenshot, view {})",
+            out_path.display(),
+            cli.screenshot_view
+        );
+        return Ok(());
+    }
 
     if let Some(cmd) = cli.command {
         match cmd {
