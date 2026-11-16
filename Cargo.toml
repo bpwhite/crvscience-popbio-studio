@@ -4,7 +4,7 @@ version = "1.2.0"
 edition = "2021"
 authors = ["Bryan P. White <CRV Science>"]
 description = "Native Rust GUI educational population biology, Sewall Wright 3D adaptive landscapes, Leslie/Lefkovitch matrices, Bayesian Skyline, and haplotype network simulator"
-license = "MIT OR Apache-2.0"
+license = "GPL-3.0-or-later"
 
 [dependencies]
 eframe = { version = "0.31", default-features = true, features = ["wgpu"] }
