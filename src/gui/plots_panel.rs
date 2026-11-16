@@ -332,19 +332,32 @@ pub fn render_time_series_tab(ui: &mut Ui, mod_id: ModuleId, workset: &WorksetSt
     );
 
     let mut series_list = Vec::new();
-    for (s_idx, &name) in names.iter().enumerate() {
-        if name.is_empty() {
-            continue;
+    if mod_id == ModuleId::V1HareLynx {
+        for (s_idx, (name, pts)) in workset.v1_hare_lynx.time_series_for_plot().into_iter().enumerate() {
+            series_list.push(PlotSeries {
+                name: name.to_string(),
+                color: colors[s_idx % colors.len()],
+                points: pts,
+                width: if s_idx < 2 { 2.2 } else { 1.6 },
+                as_dots: false,
+                dot_radius: 0.0,
+            });
         }
-        let pts: Vec<[f64; 2]> = records.iter().map(|r| [r.t, r.values[s_idx]]).collect();
-        series_list.push(PlotSeries {
-            name: name.to_string(),
-            color: colors[s_idx % colors.len()],
-            points: pts,
-            width: 2.0,
-            as_dots: false,
-            dot_radius: 0.0,
-        });
+    } else {
+        for (s_idx, &name) in names.iter().enumerate() {
+            if name.is_empty() {
+                continue;
+            }
+            let pts: Vec<[f64; 2]> = records.iter().map(|r| [r.t, r.values[s_idx]]).collect();
+            series_list.push(PlotSeries {
+                name: name.to_string(),
+                color: colors[s_idx % colors.len()],
+                points: pts,
+                width: 2.0,
+                as_dots: false,
+                dot_radius: 0.0,
+            });
+        }
     }
 
     if mod_id == ModuleId::T3WrightFisher {

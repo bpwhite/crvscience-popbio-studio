@@ -13,8 +13,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://gnu.org>.
 
-use egui::{Align2, Color32, CornerRadius, FontId, Painter, Pos2, Rect, Sense, Stroke, Ui, Vec2};
+use egui::{
+    Align2, Color32, CornerRadius, FontId, Painter, Pos2, Rect, RichText, Sense, Stroke, Ui, Vec2,
+};
 
+use crate::gui::plots_panel::{draw_scientific_plot, PlotSeries, PlotVMarker};
 use crate::model::{Agent2D, ModuleId};
 use crate::workset::WorksetState;
 
@@ -79,6 +82,119 @@ fn draw_marginal_distribution_bars(painter: &Painter, arena: Rect, agents: &[Age
 /// De Finetti HWE triangle, or Kingman coalescent genealogy view for the active simulation module.
 pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut WorksetState) {
     let avail = ui.available_size_before_wrap();
+
+    if mod_id == ModuleId::V1HareLynx {
+        // Vertical split: 68% 2D spatial predation canvas on top, 32% coupled population cycle plot on bottom
+        let top_h = ((avail.y * 0.68) - 24.0).max(200.0);
+        let bot_h = (avail.y - top_h - 28.0).max(150.0);
+        let top_size = Vec2::new(avail.x.max(360.0), top_h);
+        let (response, painter) = ui.allocate_painter(top_size, Sense::click_and_drag());
+        let rect = response.rect;
+
+        painter.rect_filled(rect, CornerRadius::same(6), Color32::from_rgb(13, 19, 28));
+        draw_box_outline(&painter, rect, Stroke::new(1.2, Color32::from_rgb(56, 72, 96)));
+        let inner = rect.shrink(16.0);
+
+        for g in 1..8 {
+            let gx = inner.left() + inner.width() * (g as f32 / 8.0);
+            let gy = inner.top() + inner.height() * (g as f32 / 8.0);
+            painter.line_segment(
+                [Pos2::new(gx, inner.top()), Pos2::new(gx, inner.bottom())],
+                Stroke::new(0.5, Color32::from_rgb(26, 38, 48)),
+            );
+            painter.line_segment(
+                [Pos2::new(inner.left(), gy), Pos2::new(inner.right(), gy)],
+                Stroke::new(0.5, Color32::from_rgb(26, 38, 48)),
+            );
+        }
+        for a in &workset.v1_hare_lynx.agents {
+            let px = inner.left() + (a.x as f32) * inner.width();
+            let py = inner.top() + (a.y as f32) * (inner.height() - 30.0);
+            if a.kind == 0 {
+                painter.circle_filled(Pos2::new(px, py), 4.0, Color32::from_rgb(138, 226, 174));
+            } else {
+                painter.circle_filled(Pos2::new(px, py), 6.5, Color32::from_rgb(249, 115, 22));
+                painter.circle_stroke(
+                    Pos2::new(px, py),
+                    9.0,
+                    Stroke::new(1.0, Color32::from_rgba_unmultiplied(249, 115, 22, 90)),
+                );
+            }
+        }
+        draw_marginal_distribution_bars(&painter, inner, &workset.v1_hare_lynx.agents);
+        ui.label(format!(
+            "Legend: Green = Snowshoe Hares ({:.1}/km²) | Orange halos = Canada Lynx ({:.1}/100 km²) | Bottom bars = Spatial longitudinal density",
+            workset.v1_hare_lynx.hares, workset.v1_hare_lynx.lynx
+        ));
+
+        ui.add_space(4.0);
+        ui.separator();
+
+        let phase = workset.v1_hare_lynx.current_phase;
+        let [pr, pg, pb] = phase.badge_rgb();
+        ui.horizontal_wrapped(|ui| {
+            ui.label(
+                RichText::new("Coupled Population Dynamics Cycle (~10-yr Boreal Limit Cycle)")
+                    .strong()
+                    .color(Color32::from_rgb(230, 240, 252)),
+            );
+            ui.label(
+                RichText::new(format!(" {} ", phase.label()))
+                    .size(11.0)
+                    .strong()
+                    .color(Color32::WHITE)
+                    .background_color(Color32::from_rgb(pr, pg, pb)),
+            );
+            ui.label(
+                RichText::new(format!(
+                    "t = {:.1} yr  |  Hares: {:.1}/km²  |  Lynx: {:.2}/100 km²",
+                    workset.v1_hare_lynx.t,
+                    workset.v1_hare_lynx.hares,
+                    workset.v1_hare_lynx.lynx
+                ))
+                .monospace()
+                .size(11.5)
+                .color(Color32::from_rgb(172, 198, 224)),
+            );
+        });
+
+        let plot_data = workset.v1_hare_lynx.time_series_for_plot();
+        let series_colors = [
+            Color32::from_rgb(74, 222, 128),
+            Color32::from_rgb(251, 146, 60),
+            Color32::from_rgb(56, 189, 248),
+        ];
+        let series: Vec<PlotSeries> = plot_data
+            .into_iter()
+            .enumerate()
+            .map(|(i, (name, points))| PlotSeries {
+                name: name.to_string(),
+                color: series_colors[i],
+                points,
+                width: if i < 2 { 2.2 } else { 1.5 },
+                as_dots: false,
+                dot_radius: 0.0,
+            })
+            .collect();
+        let vmarkers: Vec<PlotVMarker> = workset
+            .v1_hare_lynx
+            .transitions
+            .iter()
+            .rev()
+            .take(12)
+            .map(|tr| {
+                let [r, g, b] = tr.phase.badge_rgb();
+                PlotVMarker {
+                    x: tr.t,
+                    color: Color32::from_rgba_unmultiplied(r, g, b, 110),
+                }
+            })
+            .collect();
+        let plot_h = (bot_h - 46.0).max(135.0);
+        draw_scientific_plot(ui, "v1_live_cycle", plot_h, &series, &[], &vmarkers);
+        return;
+    }
+
     let canvas_size = Vec2::new(avail.x.max(360.0), (avail.y - 36.0).max(320.0));
     let (response, painter) = ui.allocate_painter(canvas_size, Sense::click_and_drag());
     let rect = response.rect;
@@ -90,40 +206,7 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
     let inner = rect.shrink(pad);
 
     match mod_id {
-        ModuleId::V1HareLynx => {
-            // Boreal forest grid + foraging hares & pursuing lynx + spatial X-density histogram
-            for g in 1..8 {
-                let gx = inner.left() + inner.width() * (g as f32 / 8.0);
-                let gy = inner.top() + inner.height() * (g as f32 / 8.0);
-                painter.line_segment(
-                    [Pos2::new(gx, inner.top()), Pos2::new(gx, inner.bottom())],
-                    Stroke::new(0.5, Color32::from_rgb(26, 38, 48)),
-                );
-                painter.line_segment(
-                    [Pos2::new(inner.left(), gy), Pos2::new(inner.right(), gy)],
-                    Stroke::new(0.5, Color32::from_rgb(26, 38, 48)),
-                );
-            }
-            for a in &workset.v1_hare_lynx.agents {
-                let px = inner.left() + (a.x as f32) * inner.width();
-                let py = inner.top() + (a.y as f32) * (inner.height() - 30.0);
-                if a.kind == 0 {
-                    painter.circle_filled(Pos2::new(px, py), 4.0, Color32::from_rgb(138, 226, 174));
-                } else {
-                    painter.circle_filled(Pos2::new(px, py), 6.5, Color32::from_rgb(249, 115, 22));
-                    painter.circle_stroke(
-                        Pos2::new(px, py),
-                        9.0,
-                        Stroke::new(1.0, Color32::from_rgba_unmultiplied(249, 115, 22, 90)),
-                    );
-                }
-            }
-            draw_marginal_distribution_bars(&painter, inner, &workset.v1_hare_lynx.agents);
-            ui.label(format!(
-                "Legend: Green circles = Snowshoe Hares ({:.1}/km^2) | Orange halos = Canada Lynx ({:.1}/100 km^2) | Bottom bars = Spatial longitudinal density",
-                workset.v1_hare_lynx.hares, workset.v1_hare_lynx.lynx
-            ));
-        }
+        ModuleId::V1HareLynx => unreachable!("V1HareLynx handled above"),
 
         ModuleId::V2IsleRoyale => {
             // Lake Superior water backdrop + elongated Isle Royale island contour + pack territories

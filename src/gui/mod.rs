@@ -70,7 +70,12 @@ impl PopBioApp {
         initial_workset: WorksetState,
         start_in_front_menu: bool,
     ) -> Self {
-        Self::new_headless(&cc.egui_ctx, initial_workset, start_in_front_menu)
+        let mut app = Self::new_headless(&cc.egui_ctx, initial_workset, start_in_front_menu);
+        if !start_in_front_menu && !WorksetState::is_empirical_module(app.workset.active_module) {
+            app.playing = true;
+            app.steps_per_frame = 2;
+        }
+        app
     }
 
     pub fn new_headless(
@@ -252,7 +257,7 @@ impl PopBioApp {
                     let s = &mut self.workset.v1_hare_lynx;
                     ui.add(egui::Slider::new(&mut s.r_hare, 0.1..=2.2).text("Hare growth r_H"));
                     ui.add(egui::Slider::new(&mut s.k_hare, 40.0..=500.0).text("Carrying capacity K"));
-                    ui.add(egui::Slider::new(&mut s.attack_rate, 0.005..=0.08).text("Lynx attack rate a"));
+                    ui.add(egui::Slider::new(&mut s.attack_rate, 0.005..=0.15).text("Lynx attack rate a"));
                     ui.add(egui::Slider::new(&mut s.handling_time, 0.02..=0.80).text("Handling time T_h"));
                     ui.add(egui::Slider::new(&mut s.conversion_eff, 0.05..=0.60).text("Conversion efficiency e"));
                     ui.add(egui::Slider::new(&mut s.lynx_mortality, 0.10..=0.95).text("Lynx mortality m_L"));
@@ -567,7 +572,9 @@ impl PopBioApp {
                             {
                                 self.workset.active_module = m;
                                 self.screen = AppScreen::ModuleWorkspace;
-                                self.playing = false;
+                                self.active_tab = WorkspaceTab::VisualizationAndDistribution;
+                                self.playing = !WorksetState::is_empirical_module(m);
+                                self.steps_per_frame = 2;
                                 ui.close_menu();
                             }
                         }
@@ -649,6 +656,8 @@ impl PopBioApp {
                             self.workset.active_module = m;
                             self.screen = AppScreen::ModuleWorkspace;
                             self.active_tab = WorkspaceTab::VisualizationAndDistribution;
+                            self.playing = !WorksetState::is_empirical_module(m);
+                            self.steps_per_frame = 2;
                         }
                         FrontMenuAction::SaveNamedSlot(name) => self.save_slot(&name),
                         FrontMenuAction::LoadNamedSlot(name) => self.load_slot(&name),
@@ -911,6 +920,9 @@ pub fn render_headless_screenshot(out_path: &std::path::Path, view: u8) -> Resul
         }
         3 => {
             ws.active_module = ModuleId::E2HaplotypeNetwork;
+        }
+        4 => {
+            ws.active_module = ModuleId::V1HareLynx;
         }
         _ => {
             ws.active_module = ModuleId::T5WrightLandscape;

@@ -22,6 +22,7 @@ use popbio_studio::popgen_alignment::{
 };
 use popbio_studio::popgen_skyline::{run_skyline_and_expansion, run_sliding_window_scan};
 use popbio_studio::sim_landscapes_matrices::{LeslieLefkovitchSim, MatrixPreset, WrightLandscapeSim};
+use popbio_studio::sim_vertebrates::HareLynxSim;
 use popbio_studio::workset::{WorksetDb, WorksetState};
 
 #[test]
@@ -187,4 +188,73 @@ fn wright_3d_landscape_and_leslie_lefkovitch_eigen_elasticity() {
         turtle.step();
     }
     assert!((turtle.realized_lambda - turtle.eigen.dominant_lambda).abs() < 0.01);
+}
+
+#[test]
+fn hare_lynx_default_exhibits_coupled_limit_cycles_with_lagged_peaks() {
+    let mut sim = HareLynxSim::default();
+    // Pre-warmed 500 steps (25.0 years) immediately on default()
+    assert!(sim.history.len() >= 500);
+    assert!((sim.t - 25.0).abs() < 1e-6);
+
+    // Advance additional 100 steps (5.0 years) for a 30-year total horizon
+    for _ in 0..100 {
+        sim.step();
+    }
+    assert!((sim.t - 30.0).abs() < 1e-6);
+
+    let mut hare_peaks: Vec<(f64, f64)> = Vec::new();
+    let mut lynx_peaks: Vec<(f64, f64)> = Vec::new();
+    for w in sim.history.windows(3) {
+        let (h0, h1, h2) = (w[0].values[0], w[1].values[0], w[2].values[0]);
+        if h1 > h0 && h1 >= h2 && h1 > 70.0 {
+            hare_peaks.push((w[1].t, h1));
+        }
+        let (l0, l1, l2) = (w[0].values[1], w[1].values[1], w[2].values[1]);
+        if l1 > l0 && l1 >= l2 && l1 > 12.0 {
+            lynx_peaks.push((w[1].t, l1));
+        }
+    }
+
+    assert!(
+        hare_peaks.len() >= 2,
+        "Expected >= 2 distinct Snowshoe Hare peaks over 30 years, got {:?}",
+        hare_peaks
+    );
+    assert!(
+        lynx_peaks.len() >= 2,
+        "Expected >= 2 distinct Canada Lynx peaks over 30 years, got {:?}",
+        lynx_peaks
+    );
+
+    // Every Hare peak (prior to the end boundary) must be followed by a quarter-phase-lagged Lynx peak
+    let mut paired_lags = 0usize;
+    for &(ht, _) in &hare_peaks {
+        if let Some(&(lt, _)) = lynx_peaks.iter().find(|&&(lt, _)| lt > ht) {
+            let lag = lt - ht;
+            assert!(
+                lag > 0.8 && lag < 5.0,
+                "Expected quarter-phase Lynx lag after Hare peak at t={ht:.2}, got lag={lag:.2} (Lynx peak t={lt:.2})"
+            );
+            paired_lags += 1;
+        }
+    }
+    assert!(
+        paired_lags >= 2,
+        "Expected >= 2 Hare->Lynx phase-lagged cycle pairs, got {paired_lags}"
+    );
+
+    // Verify scaled plot helper returns Hares, 4x-scaled Lynx, and kill rate
+    let plot_series = sim.time_series_for_plot();
+    assert_eq!(plot_series[0].1.len(), sim.history.len());
+    assert!(plot_series[1].0.contains("×4"));
+    let lynx_plot_max = plot_series[1]
+        .1
+        .iter()
+        .map(|p| p[1])
+        .fold(0.0_f64, f64::max);
+    assert!(
+        lynx_plot_max > 60.0,
+        "Expected 4x-scaled Lynx peaks to span alongside Hares (>60), got {lynx_plot_max:.2}"
+    );
 }

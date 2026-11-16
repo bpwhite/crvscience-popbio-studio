@@ -73,14 +73,14 @@ impl Default for HareLynxSim {
         let mut s = Self {
             t: 0.0,
             dt: 0.05,
-            hares: 45.0,
-            lynx: 9.0,
-            r_hare: 0.92,
-            k_hare: 180.0,
-            attack_rate: 0.028,
-            handling_time: 0.32,
-            conversion_eff: 0.24,
-            lynx_mortality: 0.42,
+            hares: 26.0,
+            lynx: 6.5,
+            r_hare: 1.08,
+            k_hare: 165.0,
+            attack_rate: 0.082,
+            handling_time: 0.30,
+            conversion_eff: 0.36,
+            lynx_mortality: 0.60,
             functional_response: FunctionalResponse::TypeIIHyperbolic,
             demographic_noise: false,
             noise_sigma: 0.04,
@@ -93,6 +93,10 @@ impl Default for HareLynxSim {
         };
         s.sync_agents();
         s.record_initial();
+        // Pre-warm 500 steps (25.0 years, ~2.5 canonical boreal cycles) so offset waves appear immediately
+        for _ in 0..500 {
+            s.step();
+        }
         s
     }
 }
@@ -109,6 +113,24 @@ impl HareLynxSim {
             "Predation Rate f(H)*L",
             "",
             "",
+        ]
+    }
+
+    /// Returns coupled time-series scaled for synchronized multi-curve plotting:
+    /// Snowshoe Hares (`per km²`), Canada Lynx (`×4 scaled, per 25 km²`), and kill rate `f(H)·L`.
+    pub fn time_series_for_plot(&self) -> [(&'static str, Vec<[f64; 2]>); 3] {
+        let mut hares_pts = Vec::with_capacity(self.history.len());
+        let mut lynx_pts = Vec::with_capacity(self.history.len());
+        let mut kill_pts = Vec::with_capacity(self.history.len());
+        for r in &self.history {
+            hares_pts.push([r.t, r.values[0]]);
+            lynx_pts.push([r.t, r.values[1] * 4.0]);
+            kill_pts.push([r.t, r.values[2]]);
+        }
+        [
+            ("Snowshoe Hares (per km²)", hares_pts),
+            ("Canada Lynx (×4 scaled, per 25 km²)", lynx_pts),
+            ("Kill Rate f(H)·L (hares/km²/yr)", kill_pts),
         ]
     }
 
