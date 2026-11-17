@@ -548,6 +548,14 @@ impl PopBioApp {
             ctx.request_repaint_after(Duration::from_millis(33));
         }
 
+        if self.screen == AppScreen::ModuleWorkspace
+            && self.workset.active_module == ModuleId::E2HaplotypeNetwork
+            && self.workset.empirical.hap_sim_playing
+        {
+            self.workset.empirical.step_haplotype_evolution();
+            ctx.request_repaint_after(Duration::from_millis(140));
+        }
+
         // Persistent Top Navigation & Workset Bar
         egui::TopBottomPanel::top("top_nav_bar").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {

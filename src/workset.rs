@@ -39,12 +39,30 @@ use crate::sim_theoretical::{
 };
 use crate::sim_vertebrates::{HareLynxSim, IsleRoyaleSim, SoaySheepSim};
 
+fn default_hap_mu() -> f64 {
+    0.004
+}
+
+fn default_hap_seed() -> u64 {
+    0x5EED_CAFE_2026
+}
+
 /// Shared Empirical FASTA Workspace powering Modules E1 (Global PopGen), E2 (Haplotype Network),
 /// E3 (Bayesian Skyline & Rogers-Harpending Expansion), and E4 (Sliding-Window Neutrality Scan).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmpiricalWorkspaceState {
     pub dataset_name: String,
     pub raw_alignment_text: String,
+    #[serde(default)]
+    pub baseline_alignment_text: String,
+    #[serde(default)]
+    pub hap_sim_playing: bool,
+    #[serde(default)]
+    pub hap_sim_generation: usize,
+    #[serde(default = "default_hap_mu")]
+    pub hap_mutation_rate_per_bp: f64,
+    #[serde(default = "default_hap_seed")]
+    pub hap_sim_seed: u64,
     pub gap_handling: GapHandling,
     pub network_algorithm: NetworkAlgorithm,
     pub mj_epsilon: usize,
@@ -70,6 +88,11 @@ impl Default for EmpiricalWorkspaceState {
         let mut s = Self {
             dataset_name: title.to_string(),
             raw_alignment_text: fasta.to_string(),
+            baseline_alignment_text: fasta.to_string(),
+            hap_sim_playing: false,
+            hap_sim_generation: 0,
+            hap_mutation_rate_per_bp: default_hap_mu(),
+            hap_sim_seed: default_hap_seed(),
             gap_handling: GapHandling::PairwiseDeletion,
             network_algorithm: NetworkAlgorithm::BandeltMedianJoining,
             mj_epsilon: 0,
@@ -98,6 +121,9 @@ impl EmpiricalWorkspaceState {
         let (title, fasta) = presets[index % presets.len()];
         self.dataset_name = title.to_string();
         self.raw_alignment_text = fasta.to_string();
+        self.baseline_alignment_text = fasta.to_string();
+        self.hap_sim_playing = false;
+        self.hap_sim_generation = 0;
         // Auto-scale sliding window nicely for longer 240 bp sweep/balancing locus vs 60 bp presets
         if index == 3 {
             self.sliding_window_bp = 48;
@@ -107,6 +133,88 @@ impl EmpiricalWorkspaceState {
             self.sliding_step_bp = 5;
         }
         self.recompute();
+    }
+
+    pub fn reset_haplotype_simulation(&mut self) {
+        if !self.baseline_alignment_text.trim().is_empty() {
+            self.raw_alignment_text = self.baseline_alignment_text.clone();
+        }
+        self.hap_sim_playing = false;
+        self.hap_sim_generation = 0;
+        self.recompute();
+    }
+
+    pub fn step_haplotype_evolution(&mut self) {
+        if self.sequences.len() < 2 {
+            return;
+        }
+        if self.baseline_alignment_text.trim().is_empty() {
+            self.baseline_alignment_text = self.raw_alignment_text.clone();
+        }
+
+        let mut prev_pos: std::collections::BTreeMap<Vec<u8>, (f64, f64)> =
+            std::collections::BTreeMap::new();
+        if let Some(net) = &self.network {
+            for node in &net.nodes {
+                if !node.is_median_vector {
+                    prev_pos.insert(node.sequence.clone(), (node.x, node.y));
+                }
+            }
+        }
+
+        let mut by_pop: std::collections::BTreeMap<String, Vec<&AlignedSequence>> =
+            std::collections::BTreeMap::new();
+        for s in &self.sequences {
+            by_pop.entry(s.population.clone()).or_default().push(s);
+        }
+
+        let mut rng = crate::rng::SimRng::new(
+            self.hap_sim_seed ^ ((self.hap_sim_generation as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)),
+        );
+        let mu = self.hap_mutation_rate_per_bp.clamp(0.0, 0.05);
+        let mut next_fasta = String::new();
+        let mut seq_idx = 0usize;
+
+        for (pop, pool) in by_pop {
+            let k = pool.len();
+            for _ in 0..k {
+                seq_idx += 1;
+                let parent = pool[rng.gen_index(k)];
+                let mut mutated = Vec::with_capacity(parent.sequence.len());
+                for ch in parent.sequence.chars() {
+                    let up = ch.to_ascii_uppercase();
+                    if matches!(up, 'A' | 'C' | 'G' | 'T') && rng.next_f64() < mu {
+                        let alts = match up {
+                            'A' => ['C', 'G', 'T'],
+                            'C' => ['A', 'G', 'T'],
+                            'G' => ['A', 'C', 'T'],
+                            _ => ['A', 'C', 'G'],
+                        };
+                        mutated.push(alts[rng.gen_index(3)]);
+                    } else {
+                        mutated.push(up);
+                    }
+                }
+                let seq_str: String = mutated.into_iter().collect();
+                next_fasta.push_str(&format!(">Sim{seq_idx}|{pop}\n{seq_str}\n"));
+            }
+        }
+
+        self.hap_sim_generation += 1;
+        self.raw_alignment_text = next_fasta;
+        self.recompute();
+
+        if let Some(net) = &mut self.network {
+            if !prev_pos.is_empty() {
+                for node in &mut net.nodes {
+                    if let Some(&(px, py)) = prev_pos.get(&node.sequence) {
+                        node.x = px;
+                        node.y = py;
+                    }
+                }
+                net.relax_layout(32);
+            }
+        }
     }
 
     pub fn recompute(&mut self) {

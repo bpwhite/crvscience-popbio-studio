@@ -70,7 +70,10 @@ pub fn render_empirical_controls(
                                 .and_then(|s| s.to_str())
                                 .unwrap_or("Uploaded Alignment")
                                 .to_string();
-                            emp.raw_alignment_text = content;
+                            emp.raw_alignment_text = content.clone();
+                            emp.baseline_alignment_text = content;
+                            emp.hap_sim_playing = false;
+                            emp.hap_sim_generation = 0;
                             emp.recompute();
                             *status_msg = format!("Loaded empirical alignment from {}", path.display());
                         }
@@ -491,12 +494,41 @@ pub fn render_popgen_summary_view(ui: &mut Ui, emp: &mut EmpiricalWorkspaceState
         });
 }
 
-/// Renders Module E2: Interactive Haplotype Network Studio.
+/// Renders Module E2: Interactive Haplotype Network Studio (with optional real-time drift & mutation evolution).
 pub fn render_haplotype_network_view(
     ui: &mut Ui,
     emp: &mut EmpiricalWorkspaceState,
     dragged_node: &mut Option<usize>,
 ) {
+    ui.horizontal_wrapped(|ui| {
+        let play_lbl = if emp.hap_sim_playing {
+            "⏸ Pause Real-Time Evolution"
+        } else {
+            "▶ Play Real-Time Drift/Mutation"
+        };
+        if ui.button(RichText::new(play_lbl).strong()).clicked() {
+            emp.hap_sim_playing = !emp.hap_sim_playing;
+        }
+        if ui.button("Step +1 Gen").clicked() {
+            emp.hap_sim_playing = false;
+            emp.step_haplotype_evolution();
+        }
+        if ui.button("↺ Reset Empirical Alignment").clicked() {
+            emp.reset_haplotype_simulation();
+        }
+        ui.add(
+            egui::Slider::new(&mut emp.hap_mutation_rate_per_bp, 0.0002..=0.020)
+                .logarithmic(true)
+                .text("Mutation rate mu/bp"),
+        );
+        ui.label(
+            RichText::new(format!("Gen: {}", emp.hap_sim_generation))
+                .monospace()
+                .strong()
+                .color(Color32::from_rgb(56, 189, 248)),
+        );
+    });
+
     let Some(net) = &mut emp.network else {
         ui.label("No valid alignment loaded to construct a haplotype network.");
         return;
