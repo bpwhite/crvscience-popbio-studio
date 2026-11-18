@@ -79,6 +79,10 @@ pub struct EmpiricalWorkspaceState {
     pub skyline_report: Option<SkylineAndExpansionReport>,
     pub sliding_report: Option<SlidingWindowScanReport>,
     pub last_error: Option<String>,
+    #[serde(default)]
+    pub skyline_log10_y: bool,
+    #[serde(skip)]
+    pub pending_recompute_at: Option<std::time::Instant>,
 }
 
 impl Default for EmpiricalWorkspaceState {
@@ -109,6 +113,8 @@ impl Default for EmpiricalWorkspaceState {
             skyline_report: None,
             sliding_report: None,
             last_error: None,
+            skyline_log10_y: false,
+            pending_recompute_at: None,
         };
         s.recompute();
         s
@@ -132,6 +138,7 @@ impl EmpiricalWorkspaceState {
             self.sliding_window_bp = 20;
             self.sliding_step_bp = 5;
         }
+        self.pending_recompute_at = None;
         self.recompute();
     }
 
@@ -141,6 +148,27 @@ impl EmpiricalWorkspaceState {
         }
         self.hap_sim_playing = false;
         self.hap_sim_generation = 0;
+        self.pending_recompute_at = None;
+        self.recompute();
+    }
+
+    pub fn schedule_debounced_recompute(&mut self, now: std::time::Instant, delay_ms: u64) {
+        self.pending_recompute_at = Some(now + std::time::Duration::from_millis(delay_ms));
+    }
+
+    pub fn flush_debounced_recompute(&mut self, now: std::time::Instant) -> bool {
+        if let Some(deadline) = self.pending_recompute_at {
+            if now >= deadline {
+                self.pending_recompute_at = None;
+                self.recompute();
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn recompute_immediately(&mut self) {
+        self.pending_recompute_at = None;
         self.recompute();
     }
 
@@ -212,7 +240,7 @@ impl EmpiricalWorkspaceState {
                         node.y = py;
                     }
                 }
-                net.relax_layout(32);
+                net.relax_layout_from_current(32);
             }
         }
     }
@@ -718,5 +746,39 @@ impl WorksetDb {
             }
         }
         out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn empirical_mcmc_debounce_coalesces_until_deadline_or_immediate_flush() {
+        let mut emp = EmpiricalWorkspaceState::default();
+        let t0 = Instant::now();
+
+        emp.bsp_mcmc_steps = 4000;
+        emp.schedule_debounced_recompute(t0, 220);
+        assert!(emp.pending_recompute_at.is_some());
+        assert!(!emp.flush_debounced_recompute(t0 + Duration::from_millis(100)));
+        assert!(emp.pending_recompute_at.is_some());
+
+        // Subsequent drag pushes deadline forward
+        let t1 = t0 + Duration::from_millis(120);
+        emp.bsp_mcmc_steps = 5200;
+        emp.schedule_debounced_recompute(t1, 220);
+        assert!(!emp.flush_debounced_recompute(t0 + Duration::from_millis(250)));
+
+        // After full delay elapses, flush executes recompute once
+        assert!(emp.flush_debounced_recompute(t1 + Duration::from_millis(230)));
+        assert!(emp.pending_recompute_at.is_none());
+        assert!(emp.skyline_report.is_some());
+
+        // Immediate flush clears pending deadline
+        emp.schedule_debounced_recompute(t1, 500);
+        emp.recompute_immediately();
+        assert!(emp.pending_recompute_at.is_none());
     }
 }

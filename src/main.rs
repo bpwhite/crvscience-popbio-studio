@@ -13,10 +13,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://gnu.org>.
 
-#![forbid(unsafe_code)]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![deny(unsafe_code)]
 
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
 
@@ -121,7 +123,36 @@ enum Commands {
     },
 }
 
+#[cfg(windows)]
+#[allow(unsafe_code)]
+fn attach_parent_console_if_cli() {
+    if std::env::args_os().len() > 1 {
+        const ATTACH_PARENT_PROCESS: u32 = u32::MAX;
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn AttachConsole(dw_process_id: u32) -> i32;
+        }
+        // SAFETY: Attaching to the parent console when CLI arguments are passed is optional;
+        // Win32 ignores or returns 0 if no parent console exists.
+        unsafe {
+            let _ = AttachConsole(ATTACH_PARENT_PROCESS);
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn attach_parent_console_if_cli() {}
+
+fn load_window_icon() -> Arc<eframe::egui::IconData> {
+    Arc::new(eframe::egui::IconData {
+        rgba: include_bytes!(concat!(env!("OUT_DIR"), "/app_icon_64.rgba")).to_vec(),
+        width: 64,
+        height: 64,
+    })
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    attach_parent_console_if_cli();
     let cli = Cli::parse();
 
     if let Some(out_path) = &cli.headless_screenshot {
@@ -263,6 +294,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_inner_size([1400.0, 880.0])
             .with_min_inner_size([960.0, 640.0])
+            .with_icon(load_window_icon())
             .with_title("PopBio Studio v1.2.0 — Population Biology, Demographic Skyline & Haplotype Workstation"),
         ..Default::default()
     };
@@ -273,4 +305,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Box::new(move |cc| Ok(Box::new(PopBioApp::new(cc, initial_ws, start_in_hub)))),
     )
     .map_err(|e| format!("GUI runtime error: {e}").into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::load_window_icon;
+
+    #[test]
+    fn embedded_window_icon_is_valid_64x64_rgba() {
+        let icon = load_window_icon();
+        assert_eq!(icon.width, 64);
+        assert_eq!(icon.height, 64);
+        assert_eq!(icon.rgba.len(), 64 * 64 * 4);
+        assert!(icon.rgba.iter().any(|&b| b > 0));
+    }
 }

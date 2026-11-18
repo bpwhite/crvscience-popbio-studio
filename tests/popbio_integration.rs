@@ -258,3 +258,26 @@ fn hare_lynx_default_exhibits_coupled_limit_cycles_with_lagged_peaks() {
         "Expected 4x-scaled Lynx peaks to span alongside Hares (>60), got {lynx_plot_max:.2}"
     );
 }
+
+#[test]
+fn custom_matrix_and_skyline_log10_roundtrip_in_workset_envelope() {
+    let mut ws = WorksetState::default();
+    ws.t6_matrix
+        .load_from_csv("StageA,StageB,StageC\n0.0,1.2,3.5\n0.4,0.1,0.0\n0.0,0.6,0.75\n")
+        .expect("load custom CSV");
+    ws.empirical.skyline_log10_y = true;
+
+    let json = ws.to_envelope_json().expect("serialize custom workset");
+    let restored = WorksetState::from_envelope_json(&json).expect("deserialize custom workset");
+    assert_eq!(restored.t6_matrix.preset, MatrixPreset::Custom);
+    assert_eq!(restored.t6_matrix.stage_names, vec!["StageA", "StageB", "StageC"]);
+    assert!(restored.empirical.skyline_log10_y);
+
+    // Ensure legacy payloads lacking `skyline_log10_y` still deserialize cleanly via #[serde(default)]
+    let raw_payload = serde_json::to_string(&ws).expect("serialize payload");
+    let stripped_payload = raw_payload.replace(",\"skyline_log10_y\":true", "");
+    assert!(!stripped_payload.contains("skyline_log10_y"));
+    let legacy_restored: WorksetState =
+        serde_json::from_str(&stripped_payload).expect("deserialize legacy payload");
+    assert!(!legacy_restored.empirical.skyline_log10_y);
+}

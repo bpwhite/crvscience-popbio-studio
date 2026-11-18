@@ -59,8 +59,10 @@ pub struct PopBioApp {
     pub new_slot_name: String,
     pub saved_slots: Vec<SaveSlotInfo>,
     pub db: Option<WorksetDb>,
+    pub db_error: Option<String>,
     pub dragged_hap_node: Option<usize>,
     pub show_help_modal: bool,
+    pub show_about_modal: bool,
     pub status_message: String,
 }
 
@@ -84,8 +86,17 @@ impl PopBioApp {
         start_in_front_menu: bool,
     ) -> Self {
         ctx.set_visuals(egui::Visuals::dark());
-        let db = WorksetDb::open_default().ok();
+        let (db, db_error) = match WorksetDb::open_default() {
+            Ok(d) => (Some(d), None),
+            Err(e) => (None, Some(e)),
+        };
         let saved_slots = db.as_ref().map(|d| d.list_slots()).unwrap_or_default();
+        let initial_status = if let Some(err) = &db_error {
+            format!("Ready (SQLite warning: {err})")
+        } else {
+            "Ready — Choose a module on the Front Menu or press F5 to Quicksave your Workset."
+                .to_string()
+        };
 
         Self {
             screen: if start_in_front_menu {
@@ -101,9 +112,11 @@ impl PopBioApp {
             new_slot_name: "Lab_Checkpoint_1".to_string(),
             saved_slots,
             db,
+            db_error,
             dragged_hap_node: None,
             show_help_modal: false,
-            status_message: "Ready — Choose a module on the Front Menu or press F5 to Quicksave your Workset.".to_string(),
+            show_about_modal: false,
+            status_message: initial_status,
         }
     }
 
@@ -122,6 +135,8 @@ impl PopBioApp {
                 }
                 Err(e) => self.status_message = e,
             }
+        } else if let Some(err) = &self.db_error {
+            self.status_message = format!("Cannot save slot '{slot_name}': {err}");
         }
     }
 
@@ -137,6 +152,8 @@ impl PopBioApp {
                 }
                 Err(e) => self.status_message = e,
             }
+        } else if let Some(err) = &self.db_error {
+            self.status_message = format!("Cannot load slot '{slot_name}': {err}");
         }
     }
 
@@ -203,7 +220,7 @@ impl PopBioApp {
         ui.label(RichText::new("Time-Step & Growth Phase Transport").strong());
         ui.horizontal_wrapped(|ui| {
             let play_lbl = if self.playing {
-                "⏸ Pause (Space)"
+                "|| Pause (Space)"
             } else {
                 "▶ Play (Space)"
             };
@@ -250,6 +267,7 @@ impl PopBioApp {
         ui.separator();
         ui.label(RichText::new("Biological Parameters & Toggles").strong());
 
+        let mut pending_status: Option<String> = None;
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| match mod_id {
@@ -484,9 +502,145 @@ impl PopBioApp {
                             s.load_preset(chosen);
                         }
                     }
+                    if s.preset == MatrixPreset::Custom {
+                        ui.label(
+                            RichText::new(format!(
+                                "Active Mode: {} ({}x{})",
+                                MatrixPreset::Custom.label(),
+                                s.base_matrix.len(),
+                                s.base_matrix.len()
+                            ))
+                            .small()
+                            .color(Color32::from_rgb(56, 189, 248)),
+                        );
+                    }
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        let mut k_edit = s.stage_names.len().clamp(2, 12);
+                        ui.label("Stage count k:");
+                        if ui
+                            .add(egui::DragValue::new(&mut k_edit).range(2..=12).speed(0.1))
+                            .changed()
+                        {
+                            s.resize_stages(k_edit);
+                            pending_status = Some(format!(
+                                "Resized projection matrix to {k_edit}x{k_edit} stages."
+                            ));
+                        }
+                        if ui.button("Import CSV...").clicked() {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("CSV Matrix", &["csv", "txt"])
+                                .pick_file()
+                            {
+                                match fs::read_to_string(&path) {
+                                    Ok(raw) => match s.load_from_csv(&raw) {
+                                        Ok(()) => {
+                                            pending_status = Some(format!(
+                                                "Imported {}x{} projection matrix from {}",
+                                                s.base_matrix.len(),
+                                                s.base_matrix.len(),
+                                                path.display()
+                                            ));
+                                        }
+                                        Err(e) => {
+                                            pending_status = Some(format!("Matrix CSV error: {e}"));
+                                        }
+                                    },
+                                    Err(e) => {
+                                        let err = format!("Failed to read {}: {e}", path.display());
+                                        s.last_matrix_error = Some(err.clone());
+                                        pending_status = Some(err);
+                                    }
+                                }
+                            }
+                        }
+                        if ui.button("Export CSV...").clicked() {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("CSV Matrix", &["csv"])
+                                .set_file_name("leslie_lefkovitch_matrix.csv")
+                                .save_file()
+                            {
+                                match fs::write(&path, s.to_matrix_csv()) {
+                                    Ok(()) => {
+                                        s.last_matrix_error = None;
+                                        pending_status = Some(format!(
+                                            "Exported {}x{} projection matrix to {}",
+                                            s.base_matrix.len(),
+                                            s.base_matrix.len(),
+                                            path.display()
+                                        ));
+                                    }
+                                    Err(e) => {
+                                        let err = format!("Failed to write {}: {e}", path.display());
+                                        s.last_matrix_error = Some(err.clone());
+                                        pending_status = Some(err);
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    if let Some(err) = &s.last_matrix_error {
+                        ui.colored_label(Color32::from_rgb(248, 113, 113), format!("Error: {err}"));
+                    }
+
+                    let mut changed = false;
+                    egui::CollapsingHeader::new("Edit k x k Projection Matrix A_ij")
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            let k = s.base_matrix.len();
+                            egui::ScrollArea::horizontal()
+                                .id_salt("t6_matrix_scroll")
+                                .show(ui, |ui| {
+                                    egui::Grid::new("t6_matrix_editor")
+                                        .spacing([4.0, 3.0])
+                                        .show(ui, |ui| {
+                                            ui.label(RichText::new("A[r,c]").monospace().small());
+                                            for c in 0..k {
+                                                let lbl = format!("S{}", c + 1);
+                                                let tip = s
+                                                    .stage_names
+                                                    .get(c)
+                                                    .cloned()
+                                                    .unwrap_or_else(|| lbl.clone());
+                                                ui.label(RichText::new(lbl).monospace().strong().small())
+                                                    .on_hover_text(tip);
+                                            }
+                                            ui.end_row();
+                                            for r in 0..k {
+                                                let r_lbl = format!("S{}", r + 1);
+                                                let r_tip = s
+                                                    .stage_names
+                                                    .get(r)
+                                                    .cloned()
+                                                    .unwrap_or_else(|| r_lbl.clone());
+                                                ui.label(
+                                                    RichText::new(r_lbl).monospace().strong().small(),
+                                                )
+                                                .on_hover_text(r_tip);
+                                                for c in 0..k {
+                                                    if ui
+                                                        .add(
+                                                            egui::DragValue::new(
+                                                                &mut s.base_matrix[r][c],
+                                                            )
+                                                            .speed(0.01)
+                                                            .range(0.0..=10_000.0)
+                                                            .max_decimals(4),
+                                                        )
+                                                        .changed()
+                                                    {
+                                                        s.preset = MatrixPreset::Custom;
+                                                        changed = true;
+                                                    }
+                                                }
+                                                ui.end_row();
+                                            }
+                                        });
+                                });
+                        });
+
                     ui.separator();
                     ui.label("Conservation & Vital-Rate Multipliers:");
-                    let mut changed = false;
                     changed |= ui
                         .add(egui::Slider::new(&mut s.fecundity_mult, 0.2..=2.5).text("Fecundity F_j multiplier"))
                         .changed();
@@ -521,6 +675,9 @@ impl PopBioApp {
                 | ModuleId::E3BayesianSkyline
                 | ModuleId::E4SlidingWindowScan => {}
             });
+        if let Some(msg) = pending_status {
+            self.status_message = msg;
+        }
     }
 }
 
@@ -560,7 +717,7 @@ impl PopBioApp {
         egui::TopBottomPanel::top("top_nav_bar").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 if ui
-                    .selectable_label(self.screen == AppScreen::FrontMenu, "⌂ Front Menu (Module Hub)")
+                    .selectable_label(self.screen == AppScreen::FrontMenu, "Front Menu (Module Hub)")
                     .clicked()
                 {
                     self.playing = false;
@@ -614,6 +771,9 @@ impl PopBioApp {
                 if ui.button("Help & Hotkeys").clicked() {
                     self.show_help_modal = true;
                 }
+                if ui.button("About").clicked() {
+                    self.show_about_modal = true;
+                }
             });
         });
 
@@ -628,8 +788,49 @@ impl PopBioApp {
                 );
                 ui.separator();
                 ui.label(&self.status_message);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(
+                        RichText::new("Copyright CRV Science Network")
+                            .size(11.5)
+                            .color(Color32::from_rgb(160, 174, 192)),
+                    );
+                });
             });
         });
+
+        if self.show_about_modal {
+            egui::Window::new("About PopBio Studio")
+                .open(&mut self.show_about_modal)
+                .resizable(false)
+                .default_width(480.0)
+                .show(ctx, |ui| {
+                    ui.label(
+                        RichText::new(format!("PopBio Studio v{}", env!("CARGO_PKG_VERSION")))
+                            .size(16.0)
+                            .strong(),
+                    );
+                    ui.label(
+                        "Native Rust population biology, Sewall Wright 3D adaptive landscapes, \
+                         Leslie/Lefkovitch stage matrices, Bayesian Skyline demographic inference, \
+                         and haplotype network workstation.",
+                    );
+                    ui.separator();
+                    ui.label(RichText::new("Copyright CRV Science Network").strong());
+                    ui.label(
+                        "Licensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later). \
+                         Provided with ABSOLUTELY NO WARRANTY.",
+                    );
+                    ui.separator();
+                    ui.hyperlink_to(
+                        "CRV Science Network (https://crvscience.com)",
+                        "https://crvscience.com",
+                    );
+                    ui.hyperlink_to(
+                        "CRV Science Open-Source Apps (https://crvscience.com/apps)",
+                        "https://crvscience.com/apps",
+                    );
+                });
+        }
 
         if self.show_help_modal {
             egui::Window::new("PopBio Studio — Controls, Worksets & Citations")
@@ -671,8 +872,17 @@ impl PopBioApp {
                         FrontMenuAction::LoadNamedSlot(name) => self.load_slot(&name),
                         FrontMenuAction::DeleteNamedSlot(name) => {
                             if let Some(db) = &self.db {
-                                let _ = db.delete_slot(&name);
-                                self.refresh_slots();
+                                match db.delete_slot(&name) {
+                                    Ok(()) => {
+                                        self.status_message =
+                                            format!("Deleted Workset checkpoint '{name}'.");
+                                        self.refresh_slots();
+                                    }
+                                    Err(e) => self.status_message = e,
+                                }
+                            } else if let Some(err) = &self.db_error {
+                                self.status_message =
+                                    format!("Cannot delete slot '{name}': {err}");
                             }
                         }
                         FrontMenuAction::ExportWorksetFile => self.export_workset_dialog(),
@@ -761,7 +971,7 @@ impl PopBioApp {
                                 );
                             }
                             ModuleId::E3BayesianSkyline => {
-                                render_skyline_and_expansion_view(ui, &self.workset.empirical);
+                                render_skyline_and_expansion_view(ui, &mut self.workset.empirical);
                             }
                             ModuleId::E4SlidingWindowScan => {
                                 render_sliding_window_view(ui, &self.workset.empirical);

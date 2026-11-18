@@ -80,13 +80,30 @@ pub fn draw_scientific_plot_ex(
     ui.horizontal_wrapped(|ui| {
         for b in bands {
             if !b.name.is_empty() {
-                ui.colored_label(b.fill, format!("▒ {}", b.name));
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    let (rect, _) = ui.allocate_exact_size(Vec2::new(12.0, 12.0), Sense::hover());
+                    let border_col = Color32::from_rgba_unmultiplied(
+                        b.fill.r(),
+                        b.fill.g(),
+                        b.fill.b(),
+                        200,
+                    );
+                    ui.painter().rect_filled(rect, CornerRadius::same(2), b.fill);
+                    draw_outline(ui.painter(), rect, Stroke::new(1.0_f32, border_col));
+                    ui.label(RichText::new(&b.name).color(Color32::from_rgb(203, 213, 225)));
+                });
                 ui.add_space(6.0);
             }
         }
         for s in series {
             if !s.name.is_empty() {
-                ui.colored_label(s.color, format!("■ {}", s.name));
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    let (rect, _) = ui.allocate_exact_size(Vec2::new(11.0, 11.0), Sense::hover());
+                    ui.painter().rect_filled(rect, CornerRadius::same(2), s.color);
+                    ui.label(RichText::new(&s.name).color(s.color));
+                });
                 ui.add_space(6.0);
             }
         }

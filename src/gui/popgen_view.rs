@@ -14,6 +14,8 @@
 // along with this program.  If not, see <https://gnu.org>.
 
 use std::fs;
+use std::path::Path;
+use std::time::{Duration, Instant};
 
 use egui::{Align2, Color32, CornerRadius, FontId, Pos2, Rect, RichText, Sense, Stroke, Ui, Vec2};
 
@@ -23,6 +25,20 @@ use crate::gui::plots_panel::{
 use crate::haplotype_network::NetworkAlgorithm;
 use crate::popgen_alignment::{builtin_alignment_presets, GapHandling};
 use crate::workset::EmpiricalWorkspaceState;
+
+pub fn write_export_file(path: &Path, content: &str, kind: &str) -> Result<String, String> {
+    fs::write(path, content)
+        .map(|()| format!("Exported {kind} to {}", path.display()))
+        .map_err(|e| format!("Failed to export {kind} to {}: {e}", path.display()))
+}
+
+pub fn skyline_y_transform(val: f64, log10_y: bool) -> f64 {
+    if log10_y {
+        val.max(1e-6).log10()
+    } else {
+        val
+    }
+}
 
 fn base_color(ch: char) -> Color32 {
     match ch {
@@ -74,11 +90,21 @@ pub fn render_empirical_controls(
                             emp.baseline_alignment_text = content;
                             emp.hap_sim_playing = false;
                             emp.hap_sim_generation = 0;
-                            emp.recompute();
-                            *status_msg = format!("Loaded empirical alignment from {}", path.display());
+                            emp.recompute_immediately();
+                            if let Some(err) = &emp.last_error {
+                                *status_msg = format!(
+                                    "Loaded {}, but alignment error: {err}",
+                                    path.display()
+                                );
+                            } else {
+                                *status_msg =
+                                    format!("Loaded empirical alignment from {}", path.display());
+                            }
                         }
                         Err(e) => {
-                            *status_msg = format!("File read error: {e}");
+                            let err = format!("File read error ({}): {e}", path.display());
+                            emp.last_error = Some(err.clone());
+                            *status_msg = err;
                         }
                     }
                 }
@@ -86,13 +112,15 @@ pub fn render_empirical_controls(
 
             ui.separator();
             ui.label(RichText::new("Gap Handling & Network Options").strong());
-            let mut changed = false;
+            let mut immediate_changed = false;
+            let mut slider_changed = false;
+            let mut slider_stopped = false;
             for mode in [GapHandling::PairwiseDeletion, GapHandling::CompleteDeletion] {
                 if ui
                     .radio_value(&mut emp.gap_handling, mode, mode.label())
                     .changed()
                 {
-                    changed = true;
+                    immediate_changed = true;
                 }
             }
 
@@ -105,56 +133,50 @@ pub fn render_empirical_controls(
                     .radio_value(&mut emp.network_algorithm, alg, alg.label())
                     .changed()
                 {
-                    changed = true;
+                    immediate_changed = true;
                 }
             }
 
-            if emp.network_algorithm == NetworkAlgorithm::BandeltMedianJoining
-                && ui
-                    .add(egui::Slider::new(&mut emp.mj_epsilon, 0..=3).text("MJ epsilon"))
-                    .changed()
-            {
-                changed = true;
+            if emp.network_algorithm == NetworkAlgorithm::BandeltMedianJoining {
+                let r = ui.add(egui::Slider::new(&mut emp.mj_epsilon, 0..=3).text("MJ epsilon"));
+                slider_changed |= r.changed();
+                slider_stopped |= r.drag_stopped();
             }
             ui.checkbox(&mut emp.show_mutation_labels, "Show edge site mutations");
 
             ui.separator();
             ui.label(RichText::new("Bayesian Skyline & Clock Calibration (E3)").strong());
-            if ui
-                .add(egui::Slider::new(&mut emp.bsp_groups, 1..=8).text("Skyline groups m"))
-                .changed()
             {
-                changed = true;
+                let r = ui.add(egui::Slider::new(&mut emp.bsp_groups, 1..=8).text("Skyline groups m"));
+                slider_changed |= r.changed();
+                slider_stopped |= r.drag_stopped();
             }
-            if ui
-                .add(
+            {
+                let r = ui.add(
                     egui::Slider::new(&mut emp.bsp_mcmc_steps, 600..=8000)
                         .logarithmic(true)
                         .text("MCMC iterations"),
-                )
-                .changed()
-            {
-                changed = true;
+                );
+                slider_changed |= r.changed();
+                slider_stopped |= r.drag_stopped();
             }
-            if ui
-                .add(
+            {
+                let r = ui.add(
                     egui::Slider::new(&mut emp.molecular_clock_rate, 1.0e-9..=1.0e-5)
                         .logarithmic(true)
                         .text("Clock mu (subs/site/gen)"),
-                )
-                .changed()
-            {
-                changed = true;
+                );
+                slider_changed |= r.changed();
+                slider_stopped |= r.drag_stopped();
             }
-            if ui
-                .add(
+            {
+                let r = ui.add(
                     egui::Slider::new(&mut emp.generation_time_years, 0.1..=25.0)
                         .logarithmic(true)
                         .text("Generation time (yr)"),
-                )
-                .changed()
-            {
-                changed = true;
+                );
+                slider_changed |= r.changed();
+                slider_stopped |= r.drag_stopped();
             }
 
             ui.separator();
@@ -165,24 +187,31 @@ pub fn render_empirical_controls(
                 .map(|s| s.sequence.len())
                 .unwrap_or(180)
                 .max(12);
-            if ui
-                .add(egui::Slider::new(&mut emp.sliding_window_bp, 8..=max_w).text("Window size (bp)"))
-                .changed()
             {
-                changed = true;
+                let r = ui.add(
+                    egui::Slider::new(&mut emp.sliding_window_bp, 8..=max_w).text("Window size (bp)"),
+                );
+                slider_changed |= r.changed();
+                slider_stopped |= r.drag_stopped();
             }
-            if ui
-                .add(
+            {
+                let r = ui.add(
                     egui::Slider::new(&mut emp.sliding_step_bp, 1..=max_w.min(60))
                         .text("Step size (bp)"),
-                )
-                .changed()
-            {
-                changed = true;
+                );
+                slider_changed |= r.changed();
+                slider_stopped |= r.drag_stopped();
             }
 
-            if changed || ui.button("Recompute All Empirical Modules").clicked() {
-                emp.recompute();
+            if immediate_changed || slider_stopped || ui.button("Recompute All Empirical Modules").clicked() {
+                emp.recompute_immediately();
+            } else if slider_changed {
+                emp.schedule_debounced_recompute(Instant::now(), 220);
+                ui.ctx().request_repaint_after(Duration::from_millis(230));
+            } else if emp.pending_recompute_at.is_some() {
+                if !emp.flush_debounced_recompute(Instant::now()) {
+                    ui.ctx().request_repaint_after(Duration::from_millis(40));
+                }
             }
 
             if let Some(net) = &mut emp.network {
@@ -197,22 +226,40 @@ pub fn render_empirical_controls(
                 if ui.button("SVG Network...").clicked() {
                     if let Some(net) = &emp.network {
                         if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("SVG Vector Image", &["svg"])
                             .set_file_name("haplotype_network.svg")
                             .save_file()
                         {
-                            let _ = fs::write(&path, net.to_svg(1024, 720));
-                            *status_msg = format!("Exported SVG network to {}", path.display());
+                            match write_export_file(&path, &net.to_svg(1024, 720), "SVG network") {
+                                Ok(msg) => {
+                                    emp.last_error = None;
+                                    *status_msg = msg;
+                                }
+                                Err(err) => {
+                                    emp.last_error = Some(err.clone());
+                                    *status_msg = err;
+                                }
+                            }
                         }
                     }
                 }
                 if ui.button("GEXF 1.3...").clicked() {
                     if let Some(net) = &emp.network {
                         if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Gephi GEXF", &["gexf", "xml"])
                             .set_file_name("haplotype_network.gexf")
                             .save_file()
                         {
-                            let _ = fs::write(&path, net.to_gexf());
-                            *status_msg = format!("Exported GEXF graph to {}", path.display());
+                            match write_export_file(&path, &net.to_gexf(), "GEXF graph") {
+                                Ok(msg) => {
+                                    emp.last_error = None;
+                                    *status_msg = msg;
+                                }
+                                Err(err) => {
+                                    emp.last_error = Some(err.clone());
+                                    *status_msg = err;
+                                }
+                            }
                         }
                     }
                 }
@@ -221,22 +268,40 @@ pub fn render_empirical_controls(
                 if ui.button("Skyline CSV...").clicked() {
                     if let Some(sky) = &emp.skyline_report {
                         if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("CSV Table", &["csv"])
                             .set_file_name("bayesian_skyline.csv")
                             .save_file()
                         {
-                            let _ = fs::write(&path, sky.to_csv());
-                            *status_msg = format!("Exported Bayesian Skyline CSV to {}", path.display());
+                            match write_export_file(&path, &sky.to_csv(), "Bayesian Skyline CSV") {
+                                Ok(msg) => {
+                                    emp.last_error = None;
+                                    *status_msg = msg;
+                                }
+                                Err(err) => {
+                                    emp.last_error = Some(err.clone());
+                                    *status_msg = err;
+                                }
+                            }
                         }
                     }
                 }
                 if ui.button("Sliding-Window CSV...").clicked() {
                     if let Some(win) = &emp.sliding_report {
                         if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("CSV Table", &["csv"])
                             .set_file_name("sliding_window_neutrality.csv")
                             .save_file()
                         {
-                            let _ = fs::write(&path, win.to_csv());
-                            *status_msg = format!("Exported Sliding-Window CSV to {}", path.display());
+                            match write_export_file(&path, &win.to_csv(), "Sliding-Window CSV") {
+                                Ok(msg) => {
+                                    emp.last_error = None;
+                                    *status_msg = msg;
+                                }
+                                Err(err) => {
+                                    emp.last_error = Some(err.clone());
+                                    *status_msg = err;
+                                }
+                            }
                         }
                     }
                 }
@@ -260,8 +325,11 @@ pub fn render_popgen_summary_view(ui: &mut Ui, emp: &mut EmpiricalWorkspaceState
                         .desired_rows(7)
                         .desired_width(f32::INFINITY),
                 );
-                if resp.changed() {
-                    emp.recompute();
+                if resp.lost_focus() && emp.pending_recompute_at.is_some() {
+                    emp.recompute_immediately();
+                } else if resp.changed() {
+                    emp.schedule_debounced_recompute(Instant::now(), 260);
+                    ui.ctx().request_repaint_after(Duration::from_millis(270));
                 }
             });
 
@@ -502,7 +570,7 @@ pub fn render_haplotype_network_view(
 ) {
     ui.horizontal_wrapped(|ui| {
         let play_lbl = if emp.hap_sim_playing {
-            "⏸ Pause Real-Time Evolution"
+            "|| Pause Real-Time Evolution"
         } else {
             "▶ Play Real-Time Drift/Mutation"
         };
@@ -559,9 +627,34 @@ pub fn render_haplotype_network_view(
     ui.horizontal_wrapped(|ui| {
         ui.label("Demes:");
         for (idx, pop) in net.populations.iter().enumerate() {
-            ui.colored_label(palette[idx % palette.len()], format!("● {pop}"));
+            let col = palette[idx % palette.len()];
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                let (swatch_rect, _) = ui.allocate_exact_size(Vec2::new(12.0, 14.0), Sense::hover());
+                ui.painter().circle_filled(swatch_rect.center(), 4.5, col);
+                ui.label(RichText::new(pop).color(col));
+            });
+            ui.add_space(4.0);
         }
-        ui.colored_label(Color32::from_rgb(239, 68, 68), "◆ Median Vector (mv)");
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            let (mv_rect, _) = ui.allocate_exact_size(Vec2::new(12.0, 14.0), Sense::hover());
+            let c = mv_rect.center();
+            let r = 4.5;
+            ui.painter().add(egui::Shape::convex_polygon(
+                vec![
+                    Pos2::new(c.x, c.y - r),
+                    Pos2::new(c.x + r, c.y),
+                    Pos2::new(c.x, c.y + r),
+                    Pos2::new(c.x - r, c.y),
+                ],
+                Color32::from_rgb(239, 68, 68),
+                Stroke::NONE,
+            ));
+            ui.label(
+                RichText::new("Median Vector (mv)").color(Color32::from_rgb(239, 68, 68)),
+            );
+        });
     });
 
     let avail = ui.available_size_before_wrap();
@@ -724,7 +817,8 @@ pub fn render_haplotype_network_view(
 
 /// Renders Module E3: MCMC Bayesian Skyline Plot (Drummond et al. 2005), Strimmer-Pybus AICc
 /// Generalized Skyline, and Rogers-Harpending (1992) Coalescent Sudden Demographic Expansion fit.
-pub fn render_skyline_and_expansion_view(ui: &mut Ui, emp: &EmpiricalWorkspaceState) {
+pub fn render_skyline_and_expansion_view(ui: &mut Ui, emp: &mut EmpiricalWorkspaceState) {
+    let log10_y = emp.skyline_log10_y;
     let Some(sky) = &emp.skyline_report else {
         ui.label("Requires at least 4 aligned sequences to reconstruct a coalescent Skyline.");
         return;
@@ -751,12 +845,17 @@ pub fn render_skyline_and_expansion_view(ui: &mut Ui, emp: &EmpiricalWorkspaceSt
             });
 
             ui.add_space(6.0);
-            ui.label(
-                RichText::new(
-                    "Bayesian Skyline Plot: Effective Population Size N_e(t) Backward from Present (t = 0 -> T_MRCA)",
-                )
-                .strong(),
-            );
+            let mut log_toggle = log10_y;
+            ui.horizontal_wrapped(|ui| {
+                let title = if log_toggle {
+                    "Bayesian Skyline Plot: log10 Ne(t) Backward from Present (t = 0 -> T_MRCA)"
+                } else {
+                    "Bayesian Skyline Plot: Effective Population Size N_e(t) Backward from Present (t = 0 -> T_MRCA)"
+                };
+                ui.label(RichText::new(title).strong());
+                ui.separator();
+                ui.checkbox(&mut log_toggle, "Log10 Ne(t) Y-Axis");
+            });
 
             let cred_band = [PlotBand {
                 name: "95% Bayesian Credible Interval".to_string(),
@@ -764,30 +863,51 @@ pub fn render_skyline_and_expansion_view(ui: &mut Ui, emp: &EmpiricalWorkspaceSt
                 bounds: sky
                     .grid
                     .iter()
-                    .map(|g| [g.scaled_time, g.ne_lower_95, g.ne_upper_95])
+                    .map(|g| {
+                        [
+                            g.scaled_time,
+                            skyline_y_transform(g.ne_lower_95, log_toggle),
+                            skyline_y_transform(g.ne_upper_95, log_toggle),
+                        ]
+                    })
                     .collect(),
             }];
 
+            let median_label = if log_toggle {
+                "BSP Posterior Median log10 Ne(t)".to_string()
+            } else {
+                "BSP Posterior Median N_e(t)".to_string()
+            };
+            let gen_label = if log_toggle {
+                "Generalized Skyline log10 Ne(t) (AICc Step)".to_string()
+            } else {
+                "Generalized Skyline (AICc Step)".to_string()
+            };
             let bsp_series = [
                 PlotSeries {
-                    name: "BSP Posterior Median N_e(t)".to_string(),
+                    name: median_label,
                     color: Color32::from_rgb(56, 189, 248),
                     points: sky
                         .grid
                         .iter()
-                        .map(|g| [g.scaled_time, g.ne_median])
+                        .map(|g| [g.scaled_time, skyline_y_transform(g.ne_median, log_toggle)])
                         .collect(),
                     width: 2.5,
                     as_dots: false,
                     dot_radius: 0.0,
                 },
                 PlotSeries {
-                    name: "Generalized Skyline (AICc Step)".to_string(),
+                    name: gen_label,
                     color: Color32::from_rgb(250, 204, 21),
                     points: sky
                         .grid
                         .iter()
-                        .map(|g| [g.scaled_time, g.generalized_skyline_ne])
+                        .map(|g| {
+                            [
+                                g.scaled_time,
+                                skyline_y_transform(g.generalized_skyline_ne, log_toggle),
+                            ]
+                        })
                         .collect(),
                     width: 1.6,
                     as_dots: false,
@@ -804,6 +924,7 @@ pub fn render_skyline_and_expansion_view(ui: &mut Ui, emp: &EmpiricalWorkspaceSt
                 &[],
                 &[],
             );
+            emp.skyline_log10_y = log_toggle;
 
             ui.add_space(10.0);
             let exp = &sky.expansion;
@@ -1107,4 +1228,45 @@ pub fn render_sliding_window_view(ui: &mut Ui, emp: &EmpiricalWorkspaceState) {
                     }
                 });
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn export_file_helper_surfaces_io_errors_and_succeeds_on_valid_path() {
+        let bad_path = std::env::temp_dir()
+            .join("popbio_nonexistent_dir_xyz_9911")
+            .join("out.svg");
+        let err = write_export_file(&bad_path, "<svg/>", "SVG network")
+            .expect_err("writing to missing directory must return Err");
+        assert!(err.contains("Failed to export SVG network"));
+
+        let ok_path = std::env::temp_dir().join("popbio_test_export_ok.csv");
+        let msg = write_export_file(&ok_path, "a,b\n1,2\n", "Skyline CSV")
+            .expect("valid write should succeed");
+        assert!(msg.contains("Exported Skyline CSV"));
+        let _ = fs::remove_file(&ok_path);
+    }
+
+    #[test]
+    fn skyline_log10_transform_preserves_hpd_ordering_and_finiteness() {
+        let mut emp = EmpiricalWorkspaceState::default();
+        for idx in 0..builtin_alignment_presets().len() {
+            emp.load_preset(idx);
+            let sky = emp.skyline_report.as_ref().expect("skyline report");
+            for g in &sky.grid {
+                let lo = skyline_y_transform(g.ne_lower_95, true);
+                let med = skyline_y_transform(g.ne_median, true);
+                let hi = skyline_y_transform(g.ne_upper_95, true);
+                let gen = skyline_y_transform(g.generalized_skyline_ne, true);
+                assert!(lo.is_finite() && med.is_finite() && hi.is_finite() && gen.is_finite());
+                assert!(lo <= med + 1e-9 && med <= hi + 1e-9);
+            }
+        }
+        assert!((skyline_y_transform(0.0, true) - (-6.0)).abs() < 1e-9);
+        assert!((skyline_y_transform(1000.0, true) - 3.0).abs() < 1e-9);
+        assert!((skyline_y_transform(1000.0, false) - 1000.0).abs() < 1e-9);
+    }
 }

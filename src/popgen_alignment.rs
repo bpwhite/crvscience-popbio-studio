@@ -104,14 +104,17 @@ pub struct PopGenSummary {
 /// Population tags can be supplied in headers as `>Sample1|IsleRoyale`, `>Sample1 [Pop=North]`,
 /// or inferred from prefix before `_`.
 pub fn parse_sequence_alignment(raw_text: &str) -> Result<Vec<AlignedSequence>, String> {
-    let trimmed = raw_text.trim();
+    let trimmed = raw_text.trim().trim_start_matches('\u{feff}').trim();
     if trimmed.is_empty() {
         return Err("Alignment text is empty.".to_string());
     }
 
     let raw_records = if trimmed.starts_with('>') {
         parse_fasta(trimmed)?
-    } else if trimmed.len() >= 6 && trimmed[..6].eq_ignore_ascii_case("#NEXUS") {
+    } else if trimmed
+        .get(..6)
+        .is_some_and(|p| p.eq_ignore_ascii_case("#NEXUS"))
+    {
         parse_nexus(trimmed)?
     } else {
         parse_phylip(trimmed)?
@@ -155,8 +158,7 @@ fn extract_id_and_pop(header: &str) -> (String, String) {
             },
         );
     }
-    if let Some(idx) = h.find("Pop=") {
-        let rest = &h[idx + 4..];
+    if let Some((_, rest)) = h.split_once("Pop=") {
         let pop: String = rest
             .chars()
             .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
@@ -236,13 +238,20 @@ fn parse_phylip(text: &str) -> Result<Vec<AlignedSequence>, String> {
         .ok_or_else(|| "Invalid PHYLIP taxa count.".to_string())?
         .parse()
         .map_err(|_| "Invalid PHYLIP integer taxa count.".to_string())?;
-    let _n_sites: usize = parts
+    let n_sites: usize = parts
         .next()
         .ok_or_else(|| "Invalid PHYLIP site count.".to_string())?
         .parse()
         .map_err(|_| "Invalid PHYLIP integer site count.".to_string())?;
 
-    let mut out: Vec<AlignedSequence> = Vec::with_capacity(n_tax);
+    if n_tax < 2 {
+        return Err("PHYLIP taxa count must be at least 2.".to_string());
+    }
+    if n_sites == 0 {
+        return Err("PHYLIP site count must be at least 1.".to_string());
+    }
+
+    let mut out: Vec<AlignedSequence> = Vec::with_capacity(n_tax.min(4096));
     for (idx, line) in lines.enumerate() {
         if idx < n_tax {
             let mut ws = line.split_whitespace();
@@ -872,4 +881,48 @@ pub fn builtin_alignment_presets() -> [(&'static str, &'static str); 4] {
              >Sample12|RidgeSouth\nATGCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCCGTAACCTAGGCTTAGCCATGACCGTTAGGCCTAACGTTATGCCGTAACCTGATCGGATGGAAGCTTATCTTTTACTTTTGCAGCATCAGCAGCAATAGCAGGAAGTTCTTCAAGAGTT",
         ),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_sequence_alignment_strips_utf8_bom_across_formats() {
+        let bom_fasta = "\u{feff}>S1|PopA\nACGTACGT\n>S2|PopB\nACGTACGA\n";
+        let fasta_seqs = parse_sequence_alignment(bom_fasta).expect("BOM-prefixed FASTA");
+        assert_eq!(fasta_seqs.len(), 2);
+        assert_eq!(fasta_seqs[0].id, "S1");
+        assert_eq!(fasta_seqs[0].population, "PopA");
+        let summary =
+            analyze_alignment("bom_fasta", &fasta_seqs, GapHandling::CompleteDeletion)
+                .expect("analyze BOM FASTA");
+        assert_eq!(summary.segregating_sites_s, 1);
+
+        let bom_phylip = "\u{feff}2 8\nS1_PopA   ACGTACGT\nS2_PopB   ACGTACGA\n";
+        let phylip_seqs = parse_sequence_alignment(bom_phylip).expect("BOM-prefixed PHYLIP");
+        assert_eq!(phylip_seqs.len(), 2);
+        assert_eq!(phylip_seqs[1].sequence, "ACGTACGA");
+    }
+
+    #[test]
+    fn parse_sequence_alignment_rejects_multibyte_utf8_and_degenerate_phylip_without_panicking() {
+        assert!(parse_sequence_alignment("aaa\u{1f9ec}AAAA\n").is_err());
+        assert!(parse_sequence_alignment("\u{1f9ec}\u{1f9ec}\nACGT\n").is_err());
+
+        let zero_tax = parse_sequence_alignment("0 4\nS1 ACGT\n")
+            .expect_err("0-taxa PHYLIP should return Err");
+        assert!(zero_tax.contains("at least 2"), "unexpected err: {zero_tax}");
+
+        let one_tax = parse_sequence_alignment("1 4\nS1 ACGT\n")
+            .expect_err("1-taxon PHYLIP should return Err");
+        assert!(one_tax.contains("at least 2"), "unexpected err: {one_tax}");
+
+        let zero_sites = parse_sequence_alignment("2 0\nS1 ACGT\nS2 ACGT\n")
+            .expect_err("0-site PHYLIP should return Err");
+        assert!(
+            zero_sites.contains("at least 1"),
+            "unexpected err: {zero_sites}"
+        );
+    }
 }

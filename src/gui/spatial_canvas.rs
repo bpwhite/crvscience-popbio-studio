@@ -14,11 +14,13 @@
 // along with this program.  If not, see <https://gnu.org>.
 
 use egui::{
-    Align2, Color32, CornerRadius, FontId, Painter, Pos2, Rect, RichText, Sense, Stroke, Ui, Vec2,
+    Align2, Color32, CornerRadius, FontId, Mesh, Painter, Pos2, Rect, RichText, Sense, Stroke, Ui,
+    Vec2,
 };
 
 use crate::gui::plots_panel::{draw_scientific_plot, PlotSeries, PlotVMarker};
 use crate::model::{Agent2D, ModuleId};
+use crate::sim_landscapes_matrices::WrightLandscapeSim;
 use crate::workset::WorksetState;
 
 fn draw_box_outline(painter: &Painter, rect: Rect, stroke: Stroke) {
@@ -726,97 +728,8 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
                 sim.camera_elevation_deg = (sim.camera_elevation_deg + (delta.y as f64) * 0.35).clamp(12.0, 72.0);
             }
 
-            let az = sim.camera_azimuth_deg.to_radians();
-            let el = sim.camera_elevation_deg.to_radians();
-            let (sin_az, cos_az) = az.sin_cos();
-            let (sin_el, cos_el) = el.sin_cos();
-            let cx_scr = inner.center().x;
-            let cy_scr = inner.center().y + inner.height() * 0.14;
-            let scale = inner.width().min(inner.height()) * 0.62;
-
-            let project = |ux: f64, uy: f64, wz: f64| -> (Pos2, f64) {
-                let x = ux - 0.5;
-                let y = uy - 0.5;
-                let z = (wz - 0.45) * 0.52;
-                let rx = x * cos_az - y * sin_az;
-                let ry = x * sin_az + y * cos_az;
-                let depth = ry * cos_el + z * sin_el;
-                let sy = ry * sin_el - z * cos_el;
-                let persp = 1.0 / (1.0 + 0.22 * depth).max(0.4);
-                (
-                    Pos2::new(
-                        cx_scr + (rx * persp) as f32 * scale,
-                        cy_scr + (sy * persp) as f32 * scale,
-                    ),
-                    depth,
-                )
-            };
-
-            // Build depth-sorted 22x22 surface quads (Painter's algorithm back-to-front)
-            let g_n = 22usize;
-            let mut quads: Vec<(f64, [Pos2; 4], Color32)> = Vec::with_capacity(g_n * g_n);
-            for i in 0..g_n {
-                let x0 = i as f64 / g_n as f64;
-                let x1 = (i + 1) as f64 / g_n as f64;
-                for j in 0..g_n {
-                    let y0 = j as f64 / g_n as f64;
-                    let y1 = (j + 1) as f64 / g_n as f64;
-                    let w00 = sim.fitness_at(x0, y0);
-                    let w10 = sim.fitness_at(x1, y0);
-                    let w11 = sim.fitness_at(x1, y1);
-                    let w01 = sim.fitness_at(x0, y1);
-                    let (p00, d00) = project(x0, y0, w00);
-                    let (p10, d10) = project(x1, y0, w10);
-                    let (p11, d11) = project(x1, y1, w11);
-                    let (p01, d01) = project(x0, y1, w01);
-                    let mean_d = 0.25 * (d00 + d10 + d11 + d01);
-                    let mean_w = 0.25 * (w00 + w10 + w11 + w01);
-                    let t = ((mean_w - 0.45) / 1.15).clamp(0.0, 1.0);
-                    let fill = Color32::from_rgb(
-                        (22.0 + 215.0 * t.powf(1.3)) as u8,
-                        (65.0 + 145.0 * (1.0 - (t - 0.55).abs() * 1.4).clamp(0.0, 1.0)) as u8,
-                        (135.0 - 90.0 * t) as u8,
-                    );
-                    quads.push((mean_d, [p00, p10, p11, p01], fill));
-                }
-            }
-            // Sort farthest depth first
-            quads.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-            let grid_stroke = Stroke::new(0.6, Color32::from_rgba_unmultiplied(15, 23, 42, 130));
-            for (_, pts, fill) in quads {
-                painter.add(egui::Shape::convex_polygon(pts.to_vec(), fill, grid_stroke));
-            }
-
-            // Draw demes, vertical fitness drop-pins & 3D historical valley-crossing trails
-            let palette = [
-                Color32::from_rgb(248, 250, 252),
-                Color32::from_rgb(56, 189, 248),
-                Color32::from_rgb(244, 114, 182),
-                Color32::from_rgb(163, 230, 53),
-                Color32::from_rgb(251, 146, 60),
-                Color32::from_rgb(192, 132, 252),
-            ];
-            for (idx, d) in sim.demes.iter().enumerate() {
-                let col = palette[idx % palette.len()];
-                for pair in d.trail.windows(2) {
-                    let (pa, _) = project(pair[0][0], pair[0][1], pair[0][2] + 0.02);
-                    let (pb, _) = project(pair[1][0], pair[1][1], pair[1][2] + 0.02);
-                    painter.line_segment([pa, pb], Stroke::new(1.5, col));
-                }
-                let (p_base, _) = project(d.x, d.y, 0.45);
-                let (p_top, _) = project(d.x, d.y, d.fitness + 0.05);
-                painter.line_segment(
-                    [p_base, p_top],
-                    Stroke::new(1.1, Color32::from_rgba_unmultiplied(255, 255, 255, 110)),
-                );
-                painter.circle_filled(p_top, 5.8, col);
-                painter.circle_stroke(p_top, 5.8, Stroke::new(1.4, Color32::BLACK));
-            }
-
-            let (p_pk1, _) = project(0.24, 0.26, sim.fitness_at(0.24, 0.26) + 0.12);
-            let (p_pk2, _) = project(0.76, 0.74, sim.fitness_at(0.76, 0.74) + 0.12);
-            painter.text(p_pk1, Align2::CENTER_BOTTOM, "Peak 1 (Local)", FontId::proportional(11.5), Color32::WHITE);
-            painter.text(p_pk2, Align2::CENTER_BOTTOM, "Peak 2 (Global Optimum)", FontId::proportional(12.0), Color32::from_rgb(254, 240, 138));
+            let geom = build_wright_surface_geometry(sim, inner);
+            render_wright_surface_geometry(&painter, &geom);
 
             ui.label(format!(
                 "Drag mouse on 3D surface to rotate (Azimuth = {:.0} deg, Elevation = {:.0} deg) | {} Demes (N_e = {:.0}) evolving via Drift + Steepest Ascent + Fitness-Weighted Dispersion",
@@ -985,5 +898,378 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
         | ModuleId::E2HaplotypeNetwork
         | ModuleId::E3BayesianSkyline
         | ModuleId::E4SlidingWindowScan => {}
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct WrightSurfaceTri {
+    pub depth: f64,
+    pub pos: [Pos2; 3],
+    pub color: Color32,
+}
+
+#[derive(Debug, Clone)]
+pub struct WrightEdgeSeg {
+    pub depth: f64,
+    pub a: Pos2,
+    pub b: Pos2,
+    pub color: Color32,
+    pub width: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct WrightDemePin {
+    pub depth: f64,
+    pub base: Pos2,
+    pub top: Pos2,
+    pub color: Color32,
+}
+
+#[derive(Debug, Clone)]
+pub struct WrightSurfaceGeometry {
+    pub triangles: Vec<WrightSurfaceTri>,
+    pub wire_edges: Vec<WrightEdgeSeg>,
+    pub trails: Vec<WrightEdgeSeg>,
+    pub deme_pins: Vec<WrightDemePin>,
+    pub peak1_label_pos: Pos2,
+    pub peak2_label_pos: Pos2,
+}
+
+fn wright_fitness_color(mean_w: f64) -> Color32 {
+    let t = ((mean_w - 0.45) / 1.15).clamp(0.0, 1.0);
+    Color32::from_rgb(
+        (22.0 + 215.0 * t.powf(1.3)) as u8,
+        (65.0 + 145.0 * (1.0 - (t - 0.55).abs() * 1.4).clamp(0.0, 1.0)) as u8,
+        (135.0 - 90.0 * t) as u8,
+    )
+}
+
+pub fn project_wright_point(
+    ux: f64,
+    uy: f64,
+    wz: f64,
+    cos_az: f64,
+    sin_az: f64,
+    cos_el: f64,
+    sin_el: f64,
+    cx_scr: f32,
+    cy_scr: f32,
+    scale: f32,
+) -> (Pos2, f64) {
+    let x = ux - 0.5;
+    let y = uy - 0.5;
+    let z = (wz - 0.45) * 0.52;
+    let rx = x * cos_az - y * sin_az;
+    let ry = x * sin_az + y * cos_az;
+    // Camera looks down from +z, +ry toward origin; +view_depth is farther away from camera.
+    let view_depth = -(ry * cos_el + z * sin_el);
+    let sy = ry * sin_el - z * cos_el;
+    let persp = 1.0 / (1.0 + 0.22 * view_depth).max(0.4);
+    (
+        Pos2::new(
+            cx_scr + (rx * persp) as f32 * scale,
+            cy_scr + (sy * persp) as f32 * scale,
+        ),
+        view_depth,
+    )
+}
+
+/// Pure geometry builder for the 3D Sewall Wright adaptive fitness landscape.
+/// Uses triangulated surface patches (`22x22` quads = `968` triangles), wireframe edges,
+/// surface-anchored deme drop-pins, and valley-crossing trails with proper camera depth.
+pub fn build_wright_surface_geometry(
+    sim: &WrightLandscapeSim,
+    inner: Rect,
+) -> WrightSurfaceGeometry {
+    let az = sim.camera_azimuth_deg.to_radians();
+    let el = sim.camera_elevation_deg.to_radians();
+    let (sin_az, cos_az) = az.sin_cos();
+    let (sin_el, cos_el) = el.sin_cos();
+    let cx_scr = inner.center().x;
+    let cy_scr = inner.center().y + inner.height() * 0.14;
+    let scale = inner.width().min(inner.height()) * 0.62;
+
+    let project = |ux: f64, uy: f64, wz: f64| -> (Pos2, f64) {
+        project_wright_point(
+            ux, uy, wz, cos_az, sin_az, cos_el, sin_el, cx_scr, cy_scr, scale,
+        )
+    };
+
+    const G_N: usize = 22;
+    let mut grid = vec![vec![(Pos2::ZERO, 0.0f64, 0.0f64); G_N + 1]; G_N + 1];
+    for (i, row) in grid.iter_mut().enumerate() {
+        let x = i as f64 / G_N as f64;
+        for (j, cell) in row.iter_mut().enumerate() {
+            let y = j as f64 / G_N as f64;
+            let w = sim.fitness_at(x, y);
+            let (p, d) = project(x, y, w);
+            *cell = (p, d, w);
+        }
+    }
+
+    let mut triangles = Vec::with_capacity(G_N * G_N * 2);
+    let mut wire_edges = Vec::with_capacity(G_N * (G_N + 1) * 2);
+    let wire_col = Color32::from_rgba_unmultiplied(15, 23, 42, 130);
+
+    for i in 0..G_N {
+        for j in 0..G_N {
+            let (p00, d00, w00) = grid[i][j];
+            let (p10, d10, w10) = grid[i + 1][j];
+            let (p11, d11, w11) = grid[i + 1][j + 1];
+            let (p01, d01, w01) = grid[i][j + 1];
+
+            triangles.push(WrightSurfaceTri {
+                depth: (d00 + d10 + d11) / 3.0,
+                pos: [p00, p10, p11],
+                color: wright_fitness_color((w00 + w10 + w11) / 3.0),
+            });
+            triangles.push(WrightSurfaceTri {
+                depth: (d00 + d11 + d01) / 3.0,
+                pos: [p00, p11, p01],
+                color: wright_fitness_color((w00 + w11 + w01) / 3.0),
+            });
+
+            wire_edges.push(WrightEdgeSeg {
+                depth: 0.5 * (d00 + d10) - 1e-4,
+                a: p00,
+                b: p10,
+                color: wire_col,
+                width: 0.7,
+            });
+            wire_edges.push(WrightEdgeSeg {
+                depth: 0.5 * (d00 + d01) - 1e-4,
+                a: p00,
+                b: p01,
+                color: wire_col,
+                width: 0.7,
+            });
+            if i == G_N - 1 {
+                wire_edges.push(WrightEdgeSeg {
+                    depth: 0.5 * (d10 + d11) - 1e-4,
+                    a: p10,
+                    b: p11,
+                    color: wire_col,
+                    width: 0.7,
+                });
+            }
+            if j == G_N - 1 {
+                wire_edges.push(WrightEdgeSeg {
+                    depth: 0.5 * (d01 + d11) - 1e-4,
+                    a: p01,
+                    b: p11,
+                    color: wire_col,
+                    width: 0.7,
+                });
+            }
+        }
+    }
+
+    let palette = [
+        Color32::from_rgb(248, 250, 252),
+        Color32::from_rgb(56, 189, 248),
+        Color32::from_rgb(244, 114, 182),
+        Color32::from_rgb(163, 230, 53),
+        Color32::from_rgb(251, 146, 60),
+        Color32::from_rgb(192, 132, 252),
+    ];
+
+    let mut trails = Vec::new();
+    let mut deme_pins = Vec::with_capacity(sim.demes.len());
+    for (idx, d) in sim.demes.iter().enumerate() {
+        let col = palette[idx % palette.len()];
+        for pair in d.trail.windows(2) {
+            let (pa, da) = project(pair[0][0], pair[0][1], pair[0][2] + 0.015);
+            let (pb, db) = project(pair[1][0], pair[1][1], pair[1][2] + 0.015);
+            trails.push(WrightEdgeSeg {
+                depth: 0.5 * (da + db) - 0.006,
+                a: pa,
+                b: pb,
+                color: col,
+                width: 1.5,
+            });
+        }
+        let surface_z = sim.fitness_at(d.x, d.y);
+        let (p_base, db) = project(d.x, d.y, surface_z);
+        let (p_top, dt) = project(d.x, d.y, surface_z.max(d.fitness) + 0.065);
+        deme_pins.push(WrightDemePin {
+            depth: db.min(dt) - 0.008,
+            base: p_base,
+            top: p_top,
+            color: col,
+        });
+    }
+
+    let (peak1_label_pos, _) = project(0.24, 0.26, sim.fitness_at(0.24, 0.26) + 0.12);
+    let (peak2_label_pos, _) = project(0.76, 0.74, sim.fitness_at(0.76, 0.74) + 0.12);
+
+    WrightSurfaceGeometry {
+        triangles,
+        wire_edges,
+        trails,
+        deme_pins,
+        peak1_label_pos,
+        peak2_label_pos,
+    }
+}
+
+fn push_mesh_line_quad(mesh: &mut Mesh, a: Pos2, b: Pos2, width: f32, color: Color32) {
+    let dir = b - a;
+    let len = dir.length();
+    if len <= 0.25 {
+        return;
+    }
+    let half_w = 0.5 * width;
+    let normal = Vec2::new(-dir.y / len * half_w, dir.x / len * half_w);
+    let base_idx = mesh.vertices.len() as u32;
+    mesh.colored_vertex(a - normal, color);
+    mesh.colored_vertex(b - normal, color);
+    mesh.colored_vertex(b + normal, color);
+    mesh.colored_vertex(a + normal, color);
+    mesh.add_triangle(base_idx, base_idx + 1, base_idx + 2);
+    mesh.add_triangle(base_idx, base_idx + 2, base_idx + 3);
+}
+
+fn render_wright_surface_geometry(painter: &Painter, geom: &WrightSurfaceGeometry) {
+    #[derive(Clone, Copy)]
+    enum DrawItem {
+        Tri(usize),
+        Wire(usize),
+        Trail(usize),
+        Pin(usize),
+    }
+
+    let total = geom.triangles.len()
+        + geom.wire_edges.len()
+        + geom.trails.len()
+        + geom.deme_pins.len();
+    let mut items: Vec<(f64, u8, DrawItem)> = Vec::with_capacity(total);
+    for (i, t) in geom.triangles.iter().enumerate() {
+        items.push((t.depth, 0, DrawItem::Tri(i)));
+    }
+    for (i, w) in geom.wire_edges.iter().enumerate() {
+        items.push((w.depth, 1, DrawItem::Wire(i)));
+    }
+    for (i, tr) in geom.trails.iter().enumerate() {
+        items.push((tr.depth, 2, DrawItem::Trail(i)));
+    }
+    for (i, pin) in geom.deme_pins.iter().enumerate() {
+        items.push((pin.depth, 3, DrawItem::Pin(i)));
+    }
+
+    items.sort_by(|a, b| {
+        b.0.partial_cmp(&a.0)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.1.cmp(&b.1))
+    });
+
+    let mut mesh = Mesh::default();
+    let flush_mesh = |painter: &Painter, mesh: &mut Mesh| {
+        if !mesh.indices.is_empty() {
+            painter.add(egui::Shape::mesh(std::mem::take(mesh)));
+        }
+    };
+
+    for (_, _, item) in items {
+        match item {
+            DrawItem::Tri(i) => {
+                let tri = &geom.triangles[i];
+                let base_idx = mesh.vertices.len() as u32;
+                mesh.colored_vertex(tri.pos[0], tri.color);
+                mesh.colored_vertex(tri.pos[1], tri.color);
+                mesh.colored_vertex(tri.pos[2], tri.color);
+                mesh.add_triangle(base_idx, base_idx + 1, base_idx + 2);
+            }
+            DrawItem::Wire(i) => {
+                let edge = &geom.wire_edges[i];
+                push_mesh_line_quad(&mut mesh, edge.a, edge.b, edge.width, edge.color);
+            }
+            DrawItem::Trail(i) => {
+                flush_mesh(painter, &mut mesh);
+                let tr = &geom.trails[i];
+                painter.line_segment([tr.a, tr.b], Stroke::new(tr.width, tr.color));
+            }
+            DrawItem::Pin(i) => {
+                flush_mesh(painter, &mut mesh);
+                let pin = &geom.deme_pins[i];
+                painter.line_segment(
+                    [pin.base, pin.top],
+                    Stroke::new(1.1_f32, Color32::from_rgba_unmultiplied(255, 255, 255, 145)),
+                );
+                painter.circle_filled(pin.top, 5.8, pin.color);
+                painter.circle_stroke(pin.top, 5.8, Stroke::new(1.4_f32, Color32::BLACK));
+            }
+        }
+    }
+    flush_mesh(painter, &mut mesh);
+
+    painter.text(
+        geom.peak1_label_pos,
+        Align2::CENTER_BOTTOM,
+        "Peak 1 (Local)",
+        FontId::proportional(11.5),
+        Color32::WHITE,
+    );
+    painter.text(
+        geom.peak2_label_pos,
+        Align2::CENTER_BOTTOM,
+        "Peak 2 (Global Optimum)",
+        FontId::proportional(12.0),
+        Color32::from_rgb(254, 240, 138),
+    );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wright_3d_mesh_triangulation_bounds_and_depth_sign() {
+        let mut sim = WrightLandscapeSim::default();
+        for _ in 0..35 {
+            sim.step();
+        }
+        let rect = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1200.0, 860.0));
+
+        for (az, el) in [(-38.0, 30.0), (45.0, 20.0), (140.0, 55.0), (-120.0, 15.0)] {
+            sim.camera_azimuth_deg = az;
+            sim.camera_elevation_deg = el;
+            let geom = build_wright_surface_geometry(&sim, rect);
+            assert_eq!(geom.triangles.len(), 22 * 22 * 2);
+            assert_eq!(geom.deme_pins.len(), sim.demes.len());
+
+            for tri in &geom.triangles {
+                assert!(tri.depth.is_finite());
+                for p in &tri.pos {
+                    assert!(p.x.is_finite() && p.y.is_finite());
+                    assert!(
+                        p.x > -200.0 && p.x < 1400.0 && p.y > -200.0 && p.y < 1100.0,
+                        "Screen coordinate ({}, {}) blew up out of viewport bounds",
+                        p.x,
+                        p.y
+                    );
+                }
+            }
+            for pin in &geom.deme_pins {
+                assert!(pin.base.x.is_finite() && pin.base.y.is_finite());
+                assert!(pin.top.x.is_finite() && pin.top.y.is_finite());
+                assert!(pin.top.y <= pin.base.y + 1e-3);
+            }
+        }
+
+        // Verify camera depth sign: a point higher on screen (back plateau) must have larger view_depth
+        // than a point lower on screen (front corner) at equal fitness elevation.
+        let el = 30.0f64.to_radians();
+        let az = (-38.0f64).to_radians();
+        let (p_back, d_back) = project_wright_point(
+            1.0, 0.0, 0.5, az.cos(), az.sin(), el.cos(), el.sin(), 600.0, 430.0, 500.0,
+        );
+        let (p_front, d_front) = project_wright_point(
+            0.0, 1.0, 0.5, az.cos(), az.sin(), el.cos(), el.sin(), 600.0, 430.0, 500.0,
+        );
+        assert!(p_back.y < p_front.y, "back corner should project higher on screen");
+        assert!(
+            d_back > d_front,
+            "back corner must have greater view_depth ({d_back} > {d_front}) so it draws first"
+        );
     }
 }

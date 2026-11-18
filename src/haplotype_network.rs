@@ -421,6 +421,22 @@ pub fn build_haplotype_network(
     Ok(net)
 }
 
+/// Escape XML/SVG special text and attribute characters.
+pub fn xml_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for ch in s.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&apos;"),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
 impl HaplotypeNetwork {
     /// Deterministic circle initialization followed by Fruchterman-Reingold force-directed relaxation.
     pub fn relax_layout(&mut self, iterations: usize) {
@@ -438,20 +454,56 @@ impl HaplotypeNetwork {
             node.x = 0.5 + 0.30 * angle.cos();
             node.y = 0.5 + 0.30 * angle.sin();
         }
+        self.relax_layout_from_current(iterations);
+    }
 
-        let k_ideal = (0.55 / (n as f64).sqrt()).max(0.08);
+    /// Force-directed relaxation starting from current node coordinates, followed by
+    /// centroid centering and aspect-preserving normalization into `[0.14, 0.86] x [0.16, 0.88]`.
+    pub fn relax_layout_from_current(&mut self, iterations: usize) {
+        let n = self.nodes.len();
+        if n == 0 {
+            return;
+        }
+        if n == 1 {
+            self.nodes[0].x = 0.5;
+            self.nodes[0].y = 0.5;
+            return;
+        }
+
+        // Deterministically nudge exact coincident nodes so repulsion separates them cleanly.
+        for i in 1..n {
+            let coincident = (0..i).any(|k| {
+                (self.nodes[i].x - self.nodes[k].x).abs() < 1e-9
+                    && (self.nodes[i].y - self.nodes[k].y).abs() < 1e-9
+            });
+            if coincident {
+                let angle = std::f64::consts::TAU * (i as f64) / (n as f64);
+                self.nodes[i].x += 1e-4 * angle.cos();
+                self.nodes[i].y += 1e-4 * angle.sin();
+            }
+        }
+
+        let k_ideal = (0.45 / (n as f64).sqrt()).max(0.09);
         for iter in 0..iterations {
-            let temp = 0.08 * (1.0 - (iter as f64) / (iterations.max(1) as f64)).max(0.05);
+            let frac = iter as f64 / (iterations.max(1) as f64);
+            let temp = 0.10 * (1.0 - frac).powi(2).max(0.002);
             let mut disp = vec![(0.0f64, 0.0f64); n];
 
             for i in 0..n {
                 for j in (i + 1)..n {
                     let dx = self.nodes[i].x - self.nodes[j].x;
                     let dy = self.nodes[i].y - self.nodes[j].y;
-                    let dist = (dx * dx + dy * dy).sqrt().max(0.015);
+                    let (ux, uy, dist) = if dx.abs() < 1e-9 && dy.abs() < 1e-9 {
+                        let angle =
+                            std::f64::consts::TAU * (((i * 7 + j * 13 + 1) % 360) as f64) / 360.0;
+                        (angle.cos(), angle.sin(), 0.015)
+                    } else {
+                        let raw_dist = (dx * dx + dy * dy).sqrt();
+                        (dx / raw_dist, dy / raw_dist, raw_dist.max(0.015))
+                    };
                     let rep = (k_ideal * k_ideal) / dist;
-                    let fx = (dx / dist) * rep;
-                    let fy = (dy / dist) * rep;
+                    let fx = ux * rep;
+                    let fy = uy * rep;
                     disp[i].0 += fx;
                     disp[i].1 += fy;
                     disp[j].0 -= fx;
@@ -466,7 +518,7 @@ impl HaplotypeNetwork {
                 let dy = self.nodes[u].y - self.nodes[v].y;
                 let dist = (dx * dx + dy * dy).sqrt().max(0.01);
                 let target_len = k_ideal * (0.75 + 0.22 * (edge.mutational_steps.min(6) as f64));
-                let attr = (dist - target_len) * 0.45;
+                let attr = (dist - target_len) * 0.65;
                 let fx = (dx / dist) * attr;
                 let fy = (dy / dist) * attr;
                 disp[u].0 -= fx;
@@ -476,14 +528,69 @@ impl HaplotypeNetwork {
             }
 
             for i in 0..n {
-                // Gentle centering gravity
-                disp[i].0 += 0.03 * (0.5 - self.nodes[i].x);
-                disp[i].1 += 0.03 * (0.5 - self.nodes[i].y);
+                // Balanced centering gravity (keeps disconnected TCS components together without wall pinning)
+                disp[i].0 += 0.12 * (0.5 - self.nodes[i].x);
+                disp[i].1 += 0.12 * (0.5 - self.nodes[i].y);
                 let mag = (disp[i].0 * disp[i].0 + disp[i].1 * disp[i].1).sqrt().max(1e-9);
                 let step = mag.min(temp);
-                self.nodes[i].x = (self.nodes[i].x + (disp[i].0 / mag) * step).clamp(0.10, 0.90);
-                self.nodes[i].y = (self.nodes[i].y + (disp[i].1 / mag) * step).clamp(0.10, 0.90);
+                self.nodes[i].x = (self.nodes[i].x + (disp[i].0 / mag) * step).clamp(-4.0, 4.0);
+                self.nodes[i].y = (self.nodes[i].y + (disp[i].1 / mag) * step).clamp(-4.0, 4.0);
             }
+        }
+
+        self.normalize_layout_bounds();
+    }
+
+    fn normalize_layout_bounds(&mut self) {
+        let n = self.nodes.len();
+        if n == 0 {
+            return;
+        }
+        if n == 1 {
+            self.nodes[0].x = 0.50;
+            self.nodes[0].y = 0.52;
+            return;
+        }
+
+        let mut min_x = f64::INFINITY;
+        let mut max_x = f64::NEG_INFINITY;
+        let mut min_y = f64::INFINITY;
+        let mut max_y = f64::NEG_INFINITY;
+        for node in &self.nodes {
+            if node.x.is_finite() && node.y.is_finite() {
+                min_x = min_x.min(node.x);
+                max_x = max_x.max(node.x);
+                min_y = min_y.min(node.y);
+                max_y = max_y.max(node.y);
+            }
+        }
+        let span_x = max_x - min_x;
+        let span_y = max_y - min_y;
+        let max_span = span_x.max(span_y);
+
+        if !max_span.is_finite() || max_span < 1e-4 {
+            if n == 2 {
+                self.nodes[0].x = 0.32;
+                self.nodes[0].y = 0.52;
+                self.nodes[1].x = 0.68;
+                self.nodes[1].y = 0.52;
+            } else {
+                for (i, node) in self.nodes.iter_mut().enumerate() {
+                    let angle = std::f64::consts::TAU * (i as f64) / (n as f64);
+                    node.x = 0.50 + 0.26 * angle.cos();
+                    node.y = 0.52 + 0.26 * angle.sin();
+                }
+            }
+            return;
+        }
+
+        let cx = 0.5 * (min_x + max_x);
+        let cy = 0.5 * (min_y + max_y);
+        let target_span = if n == 2 { 0.44 } else { 0.70 };
+        let scale = (target_span / max_span).min(3.5);
+        for node in &mut self.nodes {
+            node.x = (0.50 + (node.x - cx) * scale).clamp(0.14, 0.86);
+            node.y = (0.52 + (node.y - cy) * scale).clamp(0.16, 0.88);
         }
     }
 
@@ -502,7 +609,7 @@ impl HaplotypeNetwork {
         svg.push_str("<rect width=\"100%\" height=\"100%\" fill=\"#0F172A\"/>\n");
         svg.push_str(&format!(
             "<text x=\"24\" y=\"32\" fill=\"#F8FAFC\" font-family=\"sans-serif\" font-size=\"16\" font-weight=\"bold\">{}</text>\n",
-            self.algorithm.label()
+            xml_escape(self.algorithm.label())
         ));
 
         // Edges + mutational step hatch marks
@@ -548,7 +655,7 @@ impl HaplotypeNetwork {
                     "<text x=\"{:.1}\" y=\"{:.1}\" fill=\"#FCA5A5\" font-family=\"monospace\" font-size=\"11\">{}</text>\n",
                     cx + 9.0,
                     cy + 4.0,
-                    node.label
+                    xml_escape(&node.label)
                 ));
             } else {
                 let r = 11.0 + 5.5 * (node.sample_count as f64).sqrt();
@@ -591,7 +698,7 @@ impl HaplotypeNetwork {
                     "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"#F8FAFC\" font-family=\"sans-serif\" font-size=\"12\" font-weight=\"bold\">{} (n={})</text>\n",
                     cx,
                     cy - r - 6.0,
-                    node.label,
+                    xml_escape(&node.label),
                     node.sample_count
                 ));
             }
@@ -608,7 +715,8 @@ impl HaplotypeNetwork {
             ));
             svg.push_str(&format!(
                 "<text x=\"44\" y=\"{:.1}\" fill=\"#E2E8F0\" font-family=\"sans-serif\" font-size=\"12\">{}</text>\n",
-                ly, pop
+                ly,
+                xml_escape(pop)
             ));
         }
 
@@ -627,7 +735,9 @@ impl HaplotypeNetwork {
         for n in &self.nodes {
             xml.push_str(&format!(
                 "  <node id=\"{}\" label=\"{} (n={})\"/>\n",
-                n.id, n.label, n.sample_count
+                n.id,
+                xml_escape(&n.label),
+                n.sample_count
             ));
         }
         xml.push_str("</nodes>\n<edges>\n");
@@ -639,5 +749,127 @@ impl HaplotypeNetwork {
         }
         xml.push_str("</edges>\n</graph>\n</gexf>\n");
         xml
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::popgen_alignment::{builtin_alignment_presets, parse_sequence_alignment};
+
+    #[test]
+    fn xml_escape_escapes_svg_and_gexf_outputs() {
+        let raw_fasta = "\
+            >Seq1|A&B <North> \"Prime\" '1'\nACGTACGT\n\
+            >Seq2|C&D <South>\nACGTACGA\n\
+            >Seq3|A&B <North> \"Prime\" '1'\nACGTACGC\n";
+        let seqs = parse_sequence_alignment(raw_fasta).expect("parse special-char FASTA");
+        let mut net =
+            build_haplotype_network(&seqs, NetworkAlgorithm::BandeltMedianJoining, 0)
+                .expect("build network");
+        net.nodes[0].label = "H<1>&\"A\"'B'".to_string();
+
+        let svg = net.to_svg(1024, 720);
+        assert!(svg.contains("H&lt;1&gt;&amp;&quot;A&quot;&apos;B&apos;"));
+        assert!(svg.contains("A&amp;B &lt;North&gt; &quot;Prime&quot; &apos;1&apos;"));
+        assert!(!svg.contains("<North>"));
+
+        let gexf = net.to_gexf();
+        assert!(gexf.contains("label=\"H&lt;1&gt;&amp;&quot;A&quot;&apos;B&apos; (n="));
+        assert!(!gexf.contains("label=\"H<1>"));
+    }
+
+    #[test]
+    fn relax_layout_prevents_wall_pinning_across_presets_and_algorithms() {
+        for (_title, raw_fasta) in builtin_alignment_presets() {
+            let seqs = parse_sequence_alignment(raw_fasta).expect("parse preset");
+            for alg in [
+                NetworkAlgorithm::BandeltMedianJoining,
+                NetworkAlgorithm::MinimumSpanningNetwork,
+                NetworkAlgorithm::TcsStatisticalParsimony,
+            ] {
+                let net = build_haplotype_network(&seqs, alg, 0).expect("build net");
+                assert!(net.nodes.len() >= 2);
+                let mut min_x = f64::INFINITY;
+                let mut max_x = f64::NEG_INFINITY;
+                let mut min_y = f64::INFINITY;
+                let mut max_y = f64::NEG_INFINITY;
+                for node in &net.nodes {
+                    assert!(node.x.is_finite() && node.y.is_finite());
+                    assert!(
+                        node.x >= 0.139 && node.x <= 0.861,
+                        "x={} outside [0.14, 0.86]",
+                        node.x
+                    );
+                    assert!(
+                        node.y >= 0.159 && node.y <= 0.881,
+                        "y={} outside [0.16, 0.88]",
+                        node.y
+                    );
+                    assert!(
+                        (node.x - 0.10).abs() > 0.01 && (node.x - 0.90).abs() > 0.01,
+                        "x={} pinned near legacy wall",
+                        node.x
+                    );
+                    assert!(
+                        (node.y - 0.10).abs() > 0.01 && (node.y - 0.90).abs() > 0.01,
+                        "y={} pinned near legacy wall",
+                        node.y
+                    );
+                    min_x = min_x.min(node.x);
+                    max_x = max_x.max(node.x);
+                    min_y = min_y.min(node.y);
+                    max_y = max_y.max(node.y);
+                }
+                if net.nodes.len() >= 3 {
+                    assert!((max_x - min_x).max(max_y - min_y) > 0.25);
+                }
+            }
+        }
+
+        // Two-node edge case
+        let two_fasta = ">A|P1\nAAAA\n>B|P2\nAAAT\n";
+        let two_seqs = parse_sequence_alignment(two_fasta).expect("two seqs");
+        let two_net =
+            build_haplotype_network(&two_seqs, NetworkAlgorithm::BandeltMedianJoining, 0)
+                .expect("two net");
+        assert_eq!(two_net.nodes.len(), 2);
+        let dx = (two_net.nodes[0].x - two_net.nodes[1].x).abs();
+        let dy = (two_net.nodes[0].y - two_net.nodes[1].y).abs();
+        assert!(dx.hypot(dy) > 0.20, "two nodes collapsed");
+    }
+
+    #[test]
+    fn relax_layout_from_current_separates_coincident_nodes() {
+        let fasta = "\
+            >H1|PopA\nAAAAAA\n\
+            >H2|PopB\nCAAAAA\n\
+            >H3|PopC\nACAAAA\n\
+            >H4|PopD\nAACAAA\n";
+        let seqs = parse_sequence_alignment(fasta).expect("parse fasta");
+        let mut net = build_haplotype_network(&seqs, NetworkAlgorithm::MinimumSpanningNetwork, 0)
+            .expect("build net");
+        assert!(net.nodes.len() >= 4);
+
+        for node in &mut net.nodes {
+            node.x = 0.5;
+            node.y = 0.5;
+        }
+        net.relax_layout_from_current(180);
+
+        for i in 0..net.nodes.len() {
+            let ni = &net.nodes[i];
+            assert!(ni.x.is_finite() && ni.y.is_finite());
+            assert!(ni.x >= 0.139 && ni.x <= 0.861, "x={} out of bounds", ni.x);
+            assert!(ni.y >= 0.159 && ni.y <= 0.881, "y={} out of bounds", ni.y);
+            for j in (i + 1)..net.nodes.len() {
+                let nj = &net.nodes[j];
+                let d = (ni.x - nj.x).hypot(ni.y - nj.y);
+                assert!(
+                    d > 0.12,
+                    "coincident nodes {i} and {j} failed to separate: d={d}"
+                );
+            }
+        }
     }
 }
