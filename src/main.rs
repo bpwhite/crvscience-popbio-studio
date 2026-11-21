@@ -284,10 +284,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut start_in_hub = cli.load_workset.is_none();
     if let Some(slug) = &cli.module {
-        if let Some(m) = ModuleId::from_slug(slug) {
-            initial_ws.active_module = m;
-            start_in_hub = false;
-        }
+        let m = ModuleId::from_slug(slug).ok_or_else(|| {
+            format!("Unknown module slug '{slug}'. Try e.g. v1-hare-lynx, m1-ecoli, or e2-haplotype-network.")
+        })?;
+        initial_ws.active_module = m;
+        start_in_hub = false;
     }
 
     let native_options = eframe::NativeOptions {

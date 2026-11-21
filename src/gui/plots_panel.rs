@@ -114,7 +114,7 @@ pub fn draw_scientific_plot_ex(
         ui.allocate_painter(Vec2::new(avail_w, height.max(135.0)), Sense::hover());
     let outer = response.rect;
     painter.rect_filled(outer, CornerRadius::same(6), Color32::from_rgb(12, 18, 28));
-    draw_outline(&painter, outer, Stroke::new(1.0, Color32::from_rgb(52, 68, 92)));
+    draw_outline(&painter, outer, Stroke::new(1.0_f32, Color32::from_rgb(52, 68, 92)));
 
     let plot_rect = Rect::from_min_max(
         Pos2::new(outer.left() + 62.0, outer.top() + 12.0),
@@ -197,11 +197,11 @@ pub fn draw_scientific_plot_ex(
 
         painter.line_segment(
             [Pos2::new(sx, plot_rect.top()), Pos2::new(sx, plot_rect.bottom())],
-            Stroke::new(0.6, Color32::from_rgb(28, 38, 54)),
+            Stroke::new(0.6_f32, Color32::from_rgb(28, 38, 54)),
         );
         painter.line_segment(
             [Pos2::new(plot_rect.left(), sy), Pos2::new(plot_rect.right(), sy)],
-            Stroke::new(0.6, Color32::from_rgb(28, 38, 54)),
+            Stroke::new(0.6_f32, Color32::from_rgb(28, 38, 54)),
         );
 
         painter.text(
@@ -242,7 +242,7 @@ pub fn draw_scientific_plot_ex(
         if hm.y >= y_min && hm.y <= y_max {
             let pl = to_screen(x_min, hm.y);
             let pr = to_screen(x_max, hm.y);
-            painter.line_segment([pl, pr], Stroke::new(1.1, hm.color));
+            painter.line_segment([pl, pr], Stroke::new(1.1_f32, hm.color));
         }
     }
 
@@ -251,7 +251,7 @@ pub fn draw_scientific_plot_ex(
         if vm.x >= x_min && vm.x <= x_max {
             let p_top = to_screen(vm.x, y_max);
             let p_bot = to_screen(vm.x, y_min);
-            painter.line_segment([p_top, p_bot], Stroke::new(1.2, vm.color));
+            painter.line_segment([p_top, p_bot], Stroke::new(1.2_f32, vm.color));
         }
     }
 
@@ -300,11 +300,11 @@ pub fn draw_scientific_plot_ex(
         if plot_rect.contains(hp) {
             painter.line_segment(
                 [Pos2::new(hp.x, plot_rect.top()), Pos2::new(hp.x, plot_rect.bottom())],
-                Stroke::new(0.8, Color32::from_rgba_unmultiplied(226, 232, 240, 110)),
+                Stroke::new(0.8_f32, Color32::from_rgba_unmultiplied(226, 232, 240, 110)),
             );
             painter.line_segment(
                 [Pos2::new(plot_rect.left(), hp.y), Pos2::new(plot_rect.right(), hp.y)],
-                Stroke::new(0.8, Color32::from_rgba_unmultiplied(226, 232, 240, 110)),
+                Stroke::new(0.8_f32, Color32::from_rgba_unmultiplied(226, 232, 240, 110)),
             );
             let hx = x_min + ((hp.x - plot_rect.left()) / plot_rect.width()) as f64 * (x_max - x_min);
             let hy = y_max - ((hp.y - plot_rect.top()) / plot_rect.height()) as f64 * (y_max - y_min);

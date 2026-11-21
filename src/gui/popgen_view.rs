@@ -138,7 +138,9 @@ pub fn render_empirical_controls(
             }
 
             if emp.network_algorithm == NetworkAlgorithm::BandeltMedianJoining {
-                let r = ui.add(egui::Slider::new(&mut emp.mj_epsilon, 0..=3).text("MJ epsilon"));
+                let r = ui
+                    .add(egui::Slider::new(&mut emp.mj_epsilon, 0..=3).text("MJ epsilon"))
+                    .on_hover_text("Bandelt et al. (1999) Median-Joining homoplasy tolerance epsilon (0 = strict parsimony, 1..3 = explore alternative median cycles)");
                 slider_changed |= r.changed();
                 slider_stopped |= r.drag_stopped();
             }
@@ -147,34 +149,42 @@ pub fn render_empirical_controls(
             ui.separator();
             ui.label(RichText::new("Bayesian Skyline & Clock Calibration (E3)").strong());
             {
-                let r = ui.add(egui::Slider::new(&mut emp.bsp_groups, 1..=8).text("Skyline groups m"));
+                let r = ui
+                    .add(egui::Slider::new(&mut emp.bsp_groups, 1..=8).text("Skyline groups m"))
+                    .on_hover_text("Number of piecewise-constant effective population size intervals m in the Drummond et al. (2005) Bayesian Skyline Plot");
                 slider_changed |= r.changed();
                 slider_stopped |= r.drag_stopped();
             }
             {
-                let r = ui.add(
-                    egui::Slider::new(&mut emp.bsp_mcmc_steps, 600..=8000)
-                        .logarithmic(true)
-                        .text("MCMC iterations"),
-                );
+                let r = ui
+                    .add(
+                        egui::Slider::new(&mut emp.bsp_mcmc_steps, 600..=8000)
+                            .logarithmic(true)
+                            .text("MCMC iterations"),
+                    )
+                    .on_hover_text("Number of Metropolis-Hastings MCMC steps used to sample posterior N_e(t) trajectories and 95% HPD intervals");
                 slider_changed |= r.changed();
                 slider_stopped |= r.drag_stopped();
             }
             {
-                let r = ui.add(
-                    egui::Slider::new(&mut emp.molecular_clock_rate, 1.0e-9..=1.0e-5)
-                        .logarithmic(true)
-                        .text("Clock mu (subs/site/gen)"),
-                );
+                let r = ui
+                    .add(
+                        egui::Slider::new(&mut emp.molecular_clock_rate, 1.0e-9..=1.0e-5)
+                            .logarithmic(true)
+                            .text("Clock mu (subs/site/gen)"),
+                    )
+                    .on_hover_text("Per-site per-generation nucleotide substitution rate mu used to convert genetic coalescent time into generations and years");
                 slider_changed |= r.changed();
                 slider_stopped |= r.drag_stopped();
             }
             {
-                let r = ui.add(
-                    egui::Slider::new(&mut emp.generation_time_years, 0.1..=25.0)
-                        .logarithmic(true)
-                        .text("Generation time (yr)"),
-                );
+                let r = ui
+                    .add(
+                        egui::Slider::new(&mut emp.generation_time_years, 0.1..=25.0)
+                            .logarithmic(true)
+                            .text("Generation time (yr)"),
+                    )
+                    .on_hover_text("Mean organism generation interval in years scaling coalescent T_MRCA and demographic expansion age tau");
                 slider_changed |= r.changed();
                 slider_stopped |= r.drag_stopped();
             }
@@ -188,17 +198,21 @@ pub fn render_empirical_controls(
                 .unwrap_or(180)
                 .max(12);
             {
-                let r = ui.add(
-                    egui::Slider::new(&mut emp.sliding_window_bp, 8..=max_w).text("Window size (bp)"),
-                );
+                let r = ui
+                    .add(
+                        egui::Slider::new(&mut emp.sliding_window_bp, 8..=max_w).text("Window size (bp)"),
+                    )
+                    .on_hover_text("Alignment window width in base pairs for sliding-window Tajima's D, nucleotide diversity pi, and Hudson F_ST scans");
                 slider_changed |= r.changed();
                 slider_stopped |= r.drag_stopped();
             }
             {
-                let r = ui.add(
-                    egui::Slider::new(&mut emp.sliding_step_bp, 1..=max_w.min(60))
-                        .text("Step size (bp)"),
-                );
+                let r = ui
+                    .add(
+                        egui::Slider::new(&mut emp.sliding_step_bp, 1..=max_w.min(60))
+                            .text("Step size (bp)"),
+                    )
+                    .on_hover_text("Base-pair step stride between consecutive sliding windows across the locus");
                 slider_changed |= r.changed();
                 slider_stopped |= r.drag_stopped();
             }
@@ -588,7 +602,8 @@ pub fn render_haplotype_network_view(
             egui::Slider::new(&mut emp.hap_mutation_rate_per_bp, 0.0002..=0.020)
                 .logarithmic(true)
                 .text("Mutation rate mu/bp"),
-        );
+        )
+        .on_hover_text("Per-site per-generation mutation rate driving live Wright-Fisher haplotype network drift/mutation playback");
         ui.label(
             RichText::new(format!("Gen: {}", emp.hap_sim_generation))
                 .monospace()
@@ -703,7 +718,7 @@ pub fn render_haplotype_network_view(
         let nv = &net.nodes[edge.target];
         let p1 = to_pos(nu.x, nu.y);
         let p2 = to_pos(nv.x, nv.y);
-        painter.line_segment([p1, p2], Stroke::new(2.2, Color32::from_rgb(148, 163, 184)));
+        painter.line_segment([p1, p2], Stroke::new(2.2_f32, Color32::from_rgb(148, 163, 184)));
 
         let dir = p2 - p1;
         let len = dir.length().max(1.0);
@@ -714,7 +729,7 @@ pub fn render_haplotype_network_view(
             let mid = p1 + dir * frac;
             painter.line_segment(
                 [mid - perp * 5.5, mid + perp * 5.5],
-                Stroke::new(2.0, Color32::from_rgb(250, 204, 21)),
+                Stroke::new(2.0_f32, Color32::from_rgb(250, 204, 21)),
             );
         }
 
@@ -735,11 +750,15 @@ pub fn render_haplotype_network_view(
         }
     }
 
+    let hover_pos = response.hover_pos();
+    let mut best_hover_dist = f32::INFINITY;
+    let mut hovered_tip: Option<String> = None;
+
     for node in &net.nodes {
         let center = to_pos(node.x, node.y);
-        if node.is_median_vector {
+        let hit_radius = if node.is_median_vector {
             painter.circle_filled(center, 6.5, Color32::from_rgb(239, 68, 68));
-            painter.circle_stroke(center, 6.5, Stroke::new(1.5, Color32::WHITE));
+            painter.circle_stroke(center, 6.5, Stroke::new(1.5_f32, Color32::WHITE));
             painter.text(
                 center + Vec2::new(10.0, -8.0),
                 Align2::LEFT_CENTER,
@@ -747,6 +766,7 @@ pub fn render_haplotype_network_view(
                 FontId::monospace(11.0),
                 Color32::from_rgb(252, 165, 165),
             );
+            10.5_f32
         } else {
             let radius = 11.0 + 5.5 * (node.sample_count as f32).sqrt();
             let active: Vec<(usize, usize)> = node
@@ -781,7 +801,7 @@ pub fn render_haplotype_network_view(
                     start_a += sweep;
                 }
             }
-            painter.circle_stroke(center, radius, Stroke::new(1.8, Color32::WHITE));
+            painter.circle_stroke(center, radius, Stroke::new(1.8_f32, Color32::WHITE));
             painter.text(
                 center - Vec2::new(0.0, radius + 9.0),
                 Align2::CENTER_CENTER,
@@ -789,7 +809,47 @@ pub fn render_haplotype_network_view(
                 FontId::proportional(12.0),
                 Color32::WHITE,
             );
+            radius + 4.0_f32
+        };
+
+        if let Some(hp) = hover_pos {
+            let dist = hp.distance(center);
+            if dist <= hit_radius && dist < best_hover_dist {
+                best_hover_dist = dist;
+                hovered_tip = Some(if node.is_median_vector {
+                    format!(
+                        "Median Vector {}\nInferred unsampled ancestral haplotype (Bandelt et al. 1999)\nSamples: 0 | Drag node to adjust network layout",
+                        node.label
+                    )
+                } else {
+                    let deme_breakdown: Vec<String> = net
+                        .populations
+                        .iter()
+                        .zip(node.pop_counts.iter())
+                        .filter(|&(_, &cnt)| cnt > 0)
+                        .map(|(pop, &cnt)| format!("{pop}: {cnt}"))
+                        .collect();
+                    let deme_str = if deme_breakdown.is_empty() {
+                        "Unassigned".to_string()
+                    } else {
+                        deme_breakdown.join(", ")
+                    };
+                    let seq_ids = if node.member_ids.is_empty() {
+                        "None".to_string()
+                    } else {
+                        node.member_ids.join(", ")
+                    };
+                    format!(
+                        "Haplotype {} (n = {})\nDemes: {}\nSequence IDs: {}\nDrag node to adjust network layout",
+                        node.label, node.sample_count, deme_str, seq_ids
+                    )
+                });
+            }
         }
+    }
+
+    if let Some(tip) = hovered_tip {
+        response.on_hover_text(tip);
     }
 
     let _ = Rect::NOTHING;

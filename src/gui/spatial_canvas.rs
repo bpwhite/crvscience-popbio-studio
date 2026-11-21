@@ -94,7 +94,7 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
         let rect = response.rect;
 
         painter.rect_filled(rect, CornerRadius::same(6), Color32::from_rgb(13, 19, 28));
-        draw_box_outline(&painter, rect, Stroke::new(1.2, Color32::from_rgb(56, 72, 96)));
+        draw_box_outline(&painter, rect, Stroke::new(1.2_f32, Color32::from_rgb(56, 72, 96)));
         let inner = rect.shrink(16.0);
 
         for g in 1..8 {
@@ -102,11 +102,11 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
             let gy = inner.top() + inner.height() * (g as f32 / 8.0);
             painter.line_segment(
                 [Pos2::new(gx, inner.top()), Pos2::new(gx, inner.bottom())],
-                Stroke::new(0.5, Color32::from_rgb(26, 38, 48)),
+                Stroke::new(0.5_f32, Color32::from_rgb(26, 38, 48)),
             );
             painter.line_segment(
                 [Pos2::new(inner.left(), gy), Pos2::new(inner.right(), gy)],
-                Stroke::new(0.5, Color32::from_rgb(26, 38, 48)),
+                Stroke::new(0.5_f32, Color32::from_rgb(26, 38, 48)),
             );
         }
         for a in &workset.v1_hare_lynx.agents {
@@ -119,7 +119,7 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
                 painter.circle_stroke(
                     Pos2::new(px, py),
                     9.0,
-                    Stroke::new(1.0, Color32::from_rgba_unmultiplied(249, 115, 22, 90)),
+                    Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(249, 115, 22, 90)),
                 );
             }
         }
@@ -202,7 +202,7 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
     let rect = response.rect;
 
     painter.rect_filled(rect, CornerRadius::same(6), Color32::from_rgb(13, 19, 28));
-    draw_box_outline(&painter, rect, Stroke::new(1.2, Color32::from_rgb(56, 72, 96)));
+    draw_box_outline(&painter, rect, Stroke::new(1.2_f32, Color32::from_rgb(56, 72, 96)));
 
     let pad = 18.0;
     let inner = rect.shrink(pad);
@@ -233,7 +233,7 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
                 painter.circle_stroke(
                     Pos2::new(cx, cy),
                     inner.width() * 0.11,
-                    Stroke::new(1.0, Color32::from_rgba_unmultiplied(253, 224, 71, 80)),
+                    Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(253, 224, 71, 80)),
                 );
             }
 
@@ -383,7 +383,7 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
                         Pos2::new(sx, inner.top() + 16.0),
                         Pos2::new(sx, inner.bottom() - 16.0),
                     ],
-                    Stroke::new(6.0, Color32::from_rgb(46, 125, 50)),
+                    Stroke::new(6.0_f32, Color32::from_rgb(46, 125, 50)),
                 );
             }
             for a in &workset.i3_aphid.agents {
@@ -436,7 +436,7 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
                 };
                 painter.line_segment(
                     [Pos2::new(cx - dx, cy - dy), Pos2::new(cx + dx, cy + dy)],
-                    Stroke::new(3.6, col),
+                    Stroke::new(3.6_f32, col),
                 );
             }
             ui.label(format!(
@@ -536,7 +536,7 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
                         );
                         painter.line_segment(
                             [p1, p2],
-                            Stroke::new(0.8, Color32::from_rgba_unmultiplied(100, 116, 139, 80)),
+                            Stroke::new(0.8_f32, Color32::from_rgba_unmultiplied(100, 116, 139, 80)),
                         );
                     }
                 }
@@ -550,7 +550,7 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
                     painter.circle_stroke(
                         center,
                         7.0,
-                        Stroke::new(1.5, Color32::from_rgb(127, 29, 29)),
+                        Stroke::new(1.5_f32, Color32::from_rgb(127, 29, 29)),
                     );
                 } else if patch.occupied {
                     painter.circle_filled(center, 8.0, Color32::from_rgb(52, 211, 153));
@@ -558,7 +558,7 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
                     painter.circle_stroke(
                         center,
                         7.5,
-                        Stroke::new(1.5, Color32::from_rgb(148, 163, 184)),
+                        Stroke::new(1.5_f32, Color32::from_rgb(148, 163, 184)),
                     );
                 }
             }
@@ -585,7 +585,7 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
             // Diagonal y = x line
             painter.line_segment(
                 [to_screen(0.0, 0.0), to_screen(max_axis, max_axis)],
-                Stroke::new(1.2, Color32::from_rgb(100, 116, 139)),
+                Stroke::new(1.2_f32, Color32::from_rgb(100, 116, 139)),
             );
 
             // Return map curve N_{t+1} = f(N_t)
@@ -596,7 +596,7 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
                 let cur_pt = to_screen(x_val, y_val);
                 painter.line_segment(
                     [prev_pt, cur_pt],
-                    Stroke::new(2.2, Color32::from_rgb(56, 189, 248)),
+                    Stroke::new(2.2_f32, Color32::from_rgb(56, 189, 248)),
                 );
                 prev_pt = cur_pt;
             }
@@ -607,7 +607,7 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
                 let p2 = to_screen(pair[1].0, pair[1].1);
                 painter.line_segment(
                     [p1, p2],
-                    Stroke::new(1.3, Color32::from_rgba_unmultiplied(250, 204, 21, 185)),
+                    Stroke::new(1.3_f32, Color32::from_rgba_unmultiplied(250, 204, 21, 185)),
                 );
             }
 
@@ -625,9 +625,9 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
             let base_right = Pos2::new(inner.left() + inner.width() * 0.86, inner.bottom() - 24.0);
             let apex = Pos2::new(inner.center().x, inner.top() + 26.0);
 
-            painter.line_segment([base_left, base_right], Stroke::new(1.8, Color32::GRAY));
-            painter.line_segment([base_right, apex], Stroke::new(1.8, Color32::GRAY));
-            painter.line_segment([apex, base_left], Stroke::new(1.8, Color32::GRAY));
+            painter.line_segment([base_left, base_right], Stroke::new(1.8_f32, Color32::GRAY));
+            painter.line_segment([base_right, apex], Stroke::new(1.8_f32, Color32::GRAY));
+            painter.line_segment([apex, base_left], Stroke::new(1.8_f32, Color32::GRAY));
 
             painter.text(base_left, Align2::RIGHT_TOP, "aa (p=0)", FontId::proportional(12.5), Color32::WHITE);
             painter.text(base_right, Align2::LEFT_TOP, "AA (p=1)", FontId::proportional(12.5), Color32::WHITE);
@@ -646,7 +646,7 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
                 let cur = ternary_pt(p, 2.0 * p * (1.0 - p));
                 painter.line_segment(
                     [prev_hwe, cur],
-                    Stroke::new(1.8, Color32::from_rgb(96, 165, 250)),
+                    Stroke::new(1.8_f32, Color32::from_rgb(96, 165, 250)),
                 );
                 prev_hwe = cur;
             }
@@ -687,7 +687,7 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
                 let pc = node_pos(br.child_id);
                 let pp = node_pos(br.parent_id);
                 let corner = Pos2::new(pc.x, pp.y);
-                let stroke = Stroke::new(2.0, Color32::from_rgb(148, 163, 184));
+                let stroke = Stroke::new(2.0_f32, Color32::from_rgb(148, 163, 184));
                 painter.line_segment([pc, corner], stroke);
                 painter.line_segment([corner, pp], stroke);
 

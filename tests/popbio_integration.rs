@@ -15,6 +15,7 @@
 
 #![forbid(unsafe_code)]
 
+use popbio_studio::gui::{AppScreen, PopBioApp, WorkspaceTab};
 use popbio_studio::haplotype_network::{build_haplotype_network, NetworkAlgorithm};
 use popbio_studio::model::{GrowthPhase, ModuleId};
 use popbio_studio::popgen_alignment::{
@@ -280,4 +281,88 @@ fn custom_matrix_and_skyline_log10_roundtrip_in_workset_envelope() {
     let legacy_restored: WorksetState =
         serde_json::from_str(&stripped_payload).expect("deserialize legacy payload");
     assert!(!legacy_restored.empirical.skyline_log10_y);
+}
+
+#[test]
+fn headless_f1_escape_priority_and_space_e2_haplotype_playback() {
+    let ctx = egui::Context::default();
+    let mut ws = WorksetState::default();
+    ws.active_module = ModuleId::E2HaplotypeNetwork;
+
+    let mut app = PopBioApp {
+        screen: AppScreen::ModuleWorkspace,
+        active_tab: WorkspaceTab::VisualizationAndDistribution,
+        workset: ws,
+        playing: false,
+        steps_per_frame: 1,
+        filter_query: String::new(),
+        new_slot_name: "Lab_Checkpoint_1".to_string(),
+        saved_slots: Vec::new(),
+        db: None,
+        db_error: None,
+        dragged_hap_node: None,
+        show_help_modal: false,
+        show_about_modal: false,
+        status_message: "Ready".to_string(),
+    };
+
+    let run_frame = |ctx: &egui::Context, app: &mut PopBioApp, events: Vec<egui::Event>| {
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1400.0, 880.0),
+            )),
+            events,
+            ..Default::default()
+        };
+        let _ = ctx.run(raw, |c| app.ui_step(c));
+    };
+
+    let key = |k: egui::Key| egui::Event::Key {
+        key: k,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    };
+
+    // Warm up frame
+    run_frame(&ctx, &mut app, vec![]);
+    assert!(!app.show_help_modal);
+    assert!(!app.workset.empirical.hap_sim_playing);
+
+    // F1 toggles Help modal open and closed
+    run_frame(&ctx, &mut app, vec![key(egui::Key::F1)]);
+    assert!(app.show_help_modal);
+    run_frame(&ctx, &mut app, vec![key(egui::Key::F1)]);
+    assert!(!app.show_help_modal);
+
+    // Space toggles E2 Haplotype Network playback without flipping dynamical playing flag
+    run_frame(&ctx, &mut app, vec![key(egui::Key::Space)]);
+    assert!(app.workset.empirical.hap_sim_playing);
+    assert!(!app.playing);
+    run_frame(&ctx, &mut app, vec![key(egui::Key::Space)]);
+    assert!(!app.workset.empirical.hap_sim_playing);
+
+    // Re-enable playback and open both modals to verify layered Escape priority
+    app.workset.empirical.hap_sim_playing = true;
+    app.show_about_modal = true;
+    app.show_help_modal = true;
+
+    run_frame(&ctx, &mut app, vec![key(egui::Key::Escape)]);
+    assert!(!app.show_about_modal);
+    assert!(app.show_help_modal);
+    assert_eq!(app.screen, AppScreen::ModuleWorkspace);
+    assert!(app.workset.empirical.hap_sim_playing);
+
+    run_frame(&ctx, &mut app, vec![key(egui::Key::Escape)]);
+    assert!(!app.show_help_modal);
+    assert_eq!(app.screen, AppScreen::ModuleWorkspace);
+    assert!(app.workset.empirical.hap_sim_playing);
+
+    // Final Escape returns to FrontMenu and stops playback
+    run_frame(&ctx, &mut app, vec![key(egui::Key::Escape)]);
+    assert_eq!(app.screen, AppScreen::FrontMenu);
+    assert!(!app.playing);
+    assert!(!app.workset.empirical.hap_sim_playing);
 }

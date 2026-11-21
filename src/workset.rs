@@ -288,7 +288,7 @@ impl EmpiricalWorkspaceState {
     }
 }
 
-/// Complete multi-module "Save Game" / Workset snapshot preserving all 17 modules,
+/// Complete multi-module "Save Game" / Workset snapshot preserving all 19 modules,
 /// active simulation histories, RNG seeds, custom parameters, study notes, and empirical analyses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorksetState {

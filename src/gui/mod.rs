@@ -684,16 +684,42 @@ impl PopBioApp {
 impl PopBioApp {
     pub fn ui_step(&mut self, ctx: &egui::Context) {
         // Global keyboard shortcuts
-        if ctx.input(|i| i.key_pressed(Key::Space))
-            && self.screen == AppScreen::ModuleWorkspace
-            && !ctx.wants_keyboard_input()
-        {
-            self.playing = !self.playing;
+        let wants_kb = ctx.wants_keyboard_input();
+        let (f1_pressed, esc_pressed, space_pressed, f5_pressed, f9_pressed) = ctx.input(|i| {
+            (
+                i.key_pressed(Key::F1),
+                i.key_pressed(Key::Escape),
+                i.key_pressed(Key::Space),
+                i.key_pressed(Key::F5),
+                i.key_pressed(Key::F9),
+            )
+        });
+        if f1_pressed {
+            self.show_help_modal = !self.show_help_modal;
         }
-        if ctx.input(|i| i.key_pressed(Key::F5)) {
+        if esc_pressed {
+            if self.show_about_modal {
+                self.show_about_modal = false;
+            } else if self.show_help_modal {
+                self.show_help_modal = false;
+            } else if self.screen == AppScreen::ModuleWorkspace && !wants_kb {
+                self.playing = false;
+                self.workset.empirical.hap_sim_playing = false;
+                self.screen = AppScreen::FrontMenu;
+            }
+        }
+        if space_pressed && self.screen == AppScreen::ModuleWorkspace && !wants_kb {
+            if self.workset.active_module == ModuleId::E2HaplotypeNetwork {
+                self.workset.empirical.hap_sim_playing =
+                    !self.workset.empirical.hap_sim_playing;
+            } else {
+                self.playing = !self.playing;
+            }
+        }
+        if f5_pressed {
             self.save_slot("Quicksave");
         }
-        if ctx.input(|i| i.key_pressed(Key::F9)) {
+        if f9_pressed {
             self.load_slot("Quicksave");
         }
 
@@ -839,7 +865,9 @@ impl PopBioApp {
                 .default_width(520.0)
                 .show(ctx, |ui| {
                     ui.label(RichText::new("Keyboard Shortcuts & Lab Workflow").strong());
-                    ui.label("• Space: Play / Pause active dynamical population simulation");
+                    ui.label("• F1: Toggle Help & Hotkeys window");
+                    ui.label("• Esc: Close active modal or return to Front Menu");
+                    ui.label("• Space: Play / Pause active dynamical simulation or E2 Haplotype Network evolution");
                     ui.label("• Next Growth Phase button: Step automatically until the biological phase shifts (e.g., Lag -> Log -> Diauxic -> Stationary -> Senescence)");
                     ui.label("• F5 / F9: Instant SQLite Quicksave / Quickload of all 19 modules + custom sequence alignments");
                     ui.label("• Workset (.popworkset.json): Portable SHA-256 verified lab save-game files shareable across machines");
@@ -981,7 +1009,7 @@ impl PopBioApp {
                         return;
                     }
 
-                    // 4-Tab Bar for Dynamical & Theoretical Modules (V1..T4)
+                    // 4-Tab Bar for Dynamical & Theoretical Modules (V1..T6)
                     ui.horizontal_wrapped(|ui| {
                         ui.selectable_value(
                             &mut self.active_tab,
@@ -1032,6 +1060,7 @@ impl PopBioApp {
                             ui.add_space(12.0);
                             if ui.button("Export Time-Series Trajectory to CSV...").clicked() {
                                 if let Some(path) = rfd::FileDialog::new()
+                                    .add_filter("CSV Table", &["csv"])
                                     .set_file_name(format!("{}_timeseries.csv", mod_id.slug()))
                                     .save_file()
                                 {
