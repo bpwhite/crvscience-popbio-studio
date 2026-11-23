@@ -15,13 +15,17 @@
 
 #![forbid(unsafe_code)]
 
+use popbio_studio::gui::plots_panel::format_sci_tick;
 use popbio_studio::gui::{AppScreen, PopBioApp, WorkspaceTab};
 use popbio_studio::haplotype_network::{build_haplotype_network, NetworkAlgorithm};
 use popbio_studio::model::{GrowthPhase, ModuleId};
 use popbio_studio::popgen_alignment::{
     analyze_alignment, builtin_alignment_presets, parse_sequence_alignment, GapHandling,
 };
-use popbio_studio::popgen_skyline::{run_skyline_and_expansion, run_sliding_window_scan};
+use popbio_studio::popgen_skyline::{
+    bsp_count_valid_boundary_moves, bsp_try_boundary_move, bsp_try_scale_move,
+    run_skyline_and_expansion, run_sliding_window_scan, CoalescentInterval,
+};
 use popbio_studio::sim_landscapes_matrices::{LeslieLefkovitchSim, MatrixPreset, WrightLandscapeSim};
 use popbio_studio::sim_vertebrates::HareLynxSim;
 use popbio_studio::workset::{WorksetDb, WorksetState};
@@ -365,4 +369,157 @@ fn headless_f1_escape_priority_and_space_e2_haplotype_playback() {
     assert_eq!(app.screen, AppScreen::FrontMenu);
     assert!(!app.playing);
     assert!(!app.workset.empirical.hap_sim_playing);
+}
+
+#[test]
+fn harpending_raggedness_identical_one_and_triallelic_fu_li_eta_counts() {
+    // 1. 4 identical sequences -> d_max = 0, x_0 = 1.0, exact Harpending r = 1.0 (not 2.0!)
+    let identical_fasta = ">S1\nAAAA\n>S2\nAAAA\n>S3\nAAAA\n>S4\nAAAA\n";
+    let identical_aln = parse_sequence_alignment(identical_fasta).expect("parse identical");
+    let identical_rep = analyze_alignment("identical", &identical_aln, GapHandling::CompleteDeletion)
+        .expect("analyze identical");
+    assert!(
+        (identical_rep.harpending_raggedness - 1.0).abs() < 1e-12,
+        "Expected Harpending r == 1.0 for 4 identical sequences, got {}",
+        identical_rep.harpending_raggedness
+    );
+
+    // 2. Tri-allelic column {A:6, C:1, G:1} at pos 1 across n = 8 sequences:
+    //    segregating S = 1, total_mutations_eta = 2, singleton_sites_eta1 = 2
+    let tri_fasta = "\
+>S1\nAAAA
+>S2\nAAAA
+>S3\nAAAA
+>S4\nAAAA
+>S5\nAAAA
+>S6\nAAAA
+>S7\nCAAA
+>S8\nGAAA
+";
+    let tri_aln = parse_sequence_alignment(tri_fasta).expect("parse tri-allelic");
+    let tri_rep = analyze_alignment("triallelic", &tri_aln, GapHandling::CompleteDeletion)
+        .expect("analyze tri-allelic");
+    assert_eq!(tri_rep.segregating_sites_s, 1);
+    assert_eq!(tri_rep.total_mutations_eta, 2);
+    assert_eq!(tri_rep.singleton_sites_eta1, 2);
+
+    // Verify exact Fu & Li D* and F* with true eta = 2, eta_1 = 2, and Simonsen (1995) variance
+    let n = 8.0_f64;
+    let a1: f64 = (1..8).map(|k| 1.0 / (k as f64)).sum();
+    let a2: f64 = (1..8).map(|k| 1.0 / ((k * k) as f64)).sum();
+    let an1 = a1 + 1.0 / n;
+    let cn = 2.0 * (n * a1 - 2.0 * (n - 1.0)) / ((n - 1.0) * (n - 2.0));
+    let dn = cn + (n - 2.0) / ((n - 1.0).powi(2))
+        + (2.0 / (n - 1.0)) * (1.5 - (2.0 * an1 - 3.0) / (n - 2.0) - 1.0 / n);
+    let vd = (((n / (n - 1.0)).powi(2)) * a2 + a1 * a1 * dn - 2.0 * n * a1 * (a1 + 1.0) / (n - 1.0).powi(2))
+        / (a1 * a1 + a2);
+    let ud = (n / (n - 1.0)) * (a1 - n / (n - 1.0)) - vd;
+    let eta = 2.0_f64;
+    let eta1 = 2.0_f64;
+    let exp_d_star = ((n / (n - 1.0)) * eta - a1 * eta1) / (ud * eta + vd * eta * eta).sqrt();
+
+    let a_th_f = (n + 1.0) / (3.0 * (n - 1.0)) + (n - 5.0) / n;
+    let b_th2_f = ((n - 1.0) / n).powi(2) * dn
+        + (2.0 * (n * n + n + 3.0)) / (9.0 * n * (n - 1.0))
+        - (2.0 * (4.0 * a1 + 2.0 - n)) / (n * n);
+    let vf = b_th2_f / (a1 * a1 + a2);
+    let uf = (a_th_f / a1) - vf;
+    // Pairs of 8 sequences: C(6,2)=15 zero diffs, 6*2 + 1 = 13 unit diffs -> k_bar = 13 / 28
+    let k_bar = 13.0_f64 / 28.0_f64;
+    let exp_f_star = (k_bar - ((n - 1.0) / n) * eta1) / (uf * eta + vf * eta * eta).sqrt();
+
+    assert!((tri_rep.fu_li_d_star.unwrap() - exp_d_star).abs() < 1e-10);
+    assert!((tri_rep.fu_li_f_star.unwrap() - exp_f_star).abs() < 1e-10);
+}
+
+#[test]
+fn bsp_mcmc_rejects_out_of_bounds_without_clamping_and_applies_boundary_hastings() {
+    let intervals = vec![
+        CoalescentInterval { index: 1, lineages_k: 4, t_start_subs: 0.0, t_end_subs: 0.05, duration_subs: 0.05, classic_theta: 0.30 },
+        CoalescentInterval { index: 2, lineages_k: 3, t_start_subs: 0.05, t_end_subs: 0.13, duration_subs: 0.08, classic_theta: 0.24 },
+        CoalescentInterval { index: 3, lineages_k: 2, t_start_subs: 0.13, t_end_subs: 0.33, duration_subs: 0.20, classic_theta: 0.20 },
+        CoalescentInterval { index: 4, lineages_k: 2, t_start_subs: 0.33, t_end_subs: 0.58, duration_subs: 0.25, classic_theta: 0.25 },
+    ];
+    let mut thetas = vec![49.0_f64, 0.25_f64];
+    let sizes = vec![2usize, 2usize];
+    let mut lp = -10.0_f64;
+    // Proposed = 49 * exp(1.5) > 50.0: must reject immediately without clamping `thetas[0]` to 50.0
+    let acc_hi = bsp_try_scale_move(&intervals, &sizes, &mut thetas, 0, 1.5, 0.0, &mut lp);
+    assert!(!acc_hi);
+    assert!((thetas[0] - 49.0).abs() < 1e-12);
+
+    // Lower bound: 2e-8 * exp(-3.0) < 1e-8 must reject cleanly without clamping to 1e-8
+    thetas[0] = 2e-8;
+    let acc_lo = bsp_try_scale_move(&intervals, &sizes, &mut thetas, 0, -3.0, 0.0, &mut lp);
+    assert!(!acc_lo);
+    assert!((thetas[0] - 2e-8).abs() < 1e-18);
+
+    // Boundary Hastings ratio and skipped moves
+    let mut edge_sizes = vec![1usize, 3usize];
+    assert_eq!(bsp_count_valid_boundary_moves(&edge_sizes), 1);
+    assert_eq!(bsp_count_valid_boundary_moves(&[2, 2]), 2);
+    // Donor group 0 has size 1 -> skipped (`None`, not counted in proposals)
+    assert_eq!(bsp_try_boundary_move(&intervals, &mut edge_sizes, &[0.3, 0.3], 0, true, 0.5, &mut lp), None);
+    assert_eq!(edge_sizes, vec![1, 3]);
+}
+
+#[test]
+fn sci_tick_formatting_and_hotkeys_1_to_4_r_dot_n_work() {
+    assert_eq!(format_sci_tick(0.0005, 0.001), "5.00e-4");
+    assert_eq!(format_sci_tick(1_000_000.0, 900_000.0), "1.00e6");
+    assert_eq!(format_sci_tick(0.0, 1.0), "0");
+
+    let mut w = WrightLandscapeSim::default();
+    w.camera_azimuth_deg = 12.0;
+    w.camera_elevation_deg = 60.0;
+    w.camera_zoom = 1.8;
+    w.reset_3d_view();
+    assert!((w.camera_zoom - 1.0).abs() < 1e-9);
+    assert!((w.camera_azimuth_deg - (-38.0)).abs() < 1e-9);
+
+    let ctx = egui::Context::default();
+    let ws = WorksetState::default();
+    let mut app = PopBioApp {
+        screen: AppScreen::ModuleWorkspace,
+        active_tab: WorkspaceTab::VisualizationAndDistribution,
+        workset: ws,
+        playing: false,
+        steps_per_frame: 1,
+        filter_query: String::new(),
+        new_slot_name: "Lab_Test".to_string(),
+        saved_slots: Vec::new(),
+        db: None,
+        db_error: None,
+        dragged_hap_node: None,
+        show_help_modal: false,
+        show_about_modal: false,
+        status_message: "Ready".to_string(),
+    };
+    app.workset.active_module = ModuleId::V1HareLynx;
+    app.screen = AppScreen::ModuleWorkspace;
+    let t0 = app.workset.v1_hare_lynx.t;
+
+    let run_key = |app: &mut PopBioApp, k: egui::Key| {
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 880.0))),
+            events: vec![
+                egui::Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE },
+                egui::Event::Key { key: k, physical_key: None, pressed: false, repeat: false, modifiers: egui::Modifiers::NONE },
+            ],
+            ..Default::default()
+        };
+        let _ = ctx.run(raw, |c| app.ui_step(c));
+    };
+
+    run_key(&mut app, egui::Key::Num2);
+    assert_eq!(app.active_tab, WorkspaceTab::TimeSeriesAndGrowthPhases);
+    run_key(&mut app, egui::Key::Num4);
+    assert_eq!(app.active_tab, WorkspaceTab::EquationsAndExport);
+    run_key(&mut app, egui::Key::Period);
+    assert!(app.workset.v1_hare_lynx.t > t0);
+    let after_step = app.workset.v1_hare_lynx.t;
+    run_key(&mut app, egui::Key::N);
+    assert!(app.workset.v1_hare_lynx.t > after_step);
+    run_key(&mut app, egui::Key::R);
+    assert!((app.workset.v1_hare_lynx.t - t0).abs() < 1e-9);
 }

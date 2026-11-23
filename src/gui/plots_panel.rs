@@ -53,6 +53,28 @@ pub struct PlotHMarker {
     pub color: Color32,
 }
 
+/// Formats numeric plot axis ticks with adaptive scientific notation (`5.00e-4` for tiny `pi`
+/// and `1.00e6` for large `N_e`, fixed decimals in intermediate spans).
+pub fn format_sci_tick(v: f64, span: f64) -> String {
+    if !v.is_finite() {
+        return "NaN".to_string();
+    }
+    let eps = span.abs().max(1e-12) * 1e-9;
+    if v.abs() <= eps {
+        return "0".to_string();
+    }
+    let av = v.abs();
+    if av >= 1.0e4 || (av < 1.0e-2 || span.abs() < 5.0e-3) {
+        format!("{:.2e}", v)
+    } else if span.abs() < 1.0 {
+        format!("{:.3}", v)
+    } else if span.abs() < 10.0 {
+        format!("{:.2}", v)
+    } else {
+        format!("{:.1}", v)
+    }
+}
+
 pub fn draw_scientific_plot(
     ui: &mut Ui,
     id_salt: &str,
@@ -61,7 +83,7 @@ pub fn draw_scientific_plot(
     bars: &[PlotBar],
     vmarkers: &[PlotVMarker],
 ) {
-    draw_scientific_plot_ex(ui, id_salt, height, &[], series, bars, vmarkers, &[]);
+    draw_scientific_plot_titled(ui, id_salt, height, "", "", true, &[], series, bars, vmarkers, &[]);
 }
 
 /// Extended zero-dependency native `egui::Painter` scientific plot canvas supporting shaded
@@ -77,7 +99,49 @@ pub fn draw_scientific_plot_ex(
     vmarkers: &[PlotVMarker],
     hmarkers: &[PlotHMarker],
 ) {
+    draw_scientific_plot_titled(
+        ui,
+        id_salt,
+        height,
+        "",
+        "",
+        id_salt != "bsp_skyline_plot",
+        bands,
+        series,
+        bars,
+        vmarkers,
+        hmarkers,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn draw_scientific_plot_titled(
+    ui: &mut Ui,
+    id_salt: &str,
+    height: f32,
+    x_title: &str,
+    y_title: &str,
+    allow_log_y_toggle: bool,
+    bands: &[PlotBand],
+    series: &[PlotSeries],
+    bars: &[PlotBar],
+    vmarkers: &[PlotVMarker],
+    hmarkers: &[PlotHMarker],
+) {
+    let log_mem_id = egui::Id::new(("popbio_plot_logy", id_salt));
+    let mut use_log_y = if allow_log_y_toggle {
+        ui.data_mut(|d| d.get_temp::<bool>(log_mem_id).unwrap_or(false))
+    } else {
+        false
+    };
+
     ui.horizontal_wrapped(|ui| {
+        if allow_log_y_toggle && bars.is_empty() {
+            if ui.checkbox(&mut use_log_y, "Log-Y").changed() {
+                ui.data_mut(|d| d.insert_temp(log_mem_id, use_log_y));
+            }
+            ui.add_space(6.0);
+        }
         for b in bands {
             if !b.name.is_empty() {
                 ui.horizontal(|ui| {
@@ -116,13 +180,47 @@ pub fn draw_scientific_plot_ex(
     painter.rect_filled(outer, CornerRadius::same(6), Color32::from_rgb(12, 18, 28));
     draw_outline(&painter, outer, Stroke::new(1.0_f32, Color32::from_rgb(52, 68, 92)));
 
+    let top_pad = if y_title.is_empty() { 12.0 } else { 20.0 };
+    let bot_pad = if x_title.is_empty() { 26.0 } else { 36.0 };
+    let left_pad = 72.0;
     let plot_rect = Rect::from_min_max(
-        Pos2::new(outer.left() + 62.0, outer.top() + 12.0),
-        Pos2::new(outer.right() - 14.0, outer.bottom() - 26.0),
+        Pos2::new(outer.left() + left_pad, outer.top() + top_pad),
+        Pos2::new(outer.right() - 14.0, outer.bottom() - bot_pad),
     );
     if plot_rect.width() <= 10.0 || plot_rect.height() <= 10.0 {
         return;
     }
+    if !y_title.is_empty() {
+        let lbl = if use_log_y {
+            format!("log10({})", y_title)
+        } else {
+            y_title.to_string()
+        };
+        painter.text(
+            Pos2::new(plot_rect.left(), outer.top() + 5.0),
+            Align2::LEFT_TOP,
+            lbl,
+            FontId::monospace(9.5),
+            Color32::from_rgb(148, 163, 184),
+        );
+    }
+    if !x_title.is_empty() {
+        painter.text(
+            Pos2::new(plot_rect.center().x, outer.bottom() - 4.0),
+            Align2::CENTER_BOTTOM,
+            x_title,
+            FontId::monospace(9.5),
+            Color32::from_rgb(148, 163, 184),
+        );
+    }
+
+    let map_y = |raw_y: f64| -> f64 {
+        if use_log_y {
+            raw_y.max(1e-12).log10()
+        } else {
+            raw_y
+        }
+    };
 
     let mut x_min = f64::INFINITY;
     let mut x_max = f64::NEG_INFINITY;
@@ -134,13 +232,14 @@ pub fn draw_scientific_plot_ex(
             if x.is_finite() && yl.is_finite() && yh.is_finite() {
                 x_min = x_min.min(x);
                 x_max = x_max.max(x);
-                y_min = y_min.min(yl);
-                y_max = y_max.max(yh);
+                y_min = y_min.min(map_y(yl));
+                y_max = y_max.max(map_y(yh));
             }
         }
     }
     for s in series {
-        for &[x, y] in &s.points {
+        for &[x, raw_y] in &s.points {
+            let y = map_y(raw_y);
             if x.is_finite() && y.is_finite() {
                 x_min = x_min.min(x);
                 x_max = x_max.max(x);
@@ -156,23 +255,23 @@ pub fn draw_scientific_plot_ex(
         y_max = y_max.max(b.y);
     }
     for hm in hmarkers {
-        y_min = y_min.min(hm.y);
-        y_max = y_max.max(hm.y);
+        let y = map_y(hm.y);
+        y_min = y_min.min(y);
+        y_max = y_max.max(y);
     }
 
     if !x_min.is_finite() || !y_min.is_finite() {
-        let _ = id_salt;
         return;
     }
-    if (x_max - x_min).abs() < 1e-9 {
+    if (x_max - x_min).abs() < 1e-12 {
         x_max = x_min + 1.0;
     }
-    if (y_max - y_min).abs() < 1e-9 {
+    if (y_max - y_min).abs() < 1e-12 {
         y_max = y_min + 1.0;
     } else {
         let pad_y = 0.07 * (y_max - y_min);
         y_max += pad_y;
-        if y_min >= 0.0 && y_min < 0.15 * y_max {
+        if !use_log_y && y_min >= 0.0 && y_min < 0.15 * y_max {
             y_min = 0.0;
         } else {
             y_min -= pad_y;
@@ -188,10 +287,12 @@ pub fn draw_scientific_plot_ex(
         )
     };
 
+    let x_span = x_max - x_min;
+    let y_span = y_max - y_min;
     for tick in 0..=4 {
         let frac = tick as f64 / 4.0;
-        let xv = x_min + frac * (x_max - x_min);
-        let yv = y_min + frac * (y_max - y_min);
+        let xv = x_min + frac * x_span;
+        let yv = y_min + frac * y_span;
         let sx = plot_rect.left() + (frac as f32) * plot_rect.width();
         let sy = plot_rect.bottom() - (frac as f32) * plot_rect.height();
 
@@ -205,17 +306,22 @@ pub fn draw_scientific_plot_ex(
         );
 
         painter.text(
-            Pos2::new(sx, plot_rect.bottom() + 5.0),
+            Pos2::new(sx, plot_rect.bottom() + 4.0),
             Align2::CENTER_TOP,
-            format!("{:.1}", xv),
-            FontId::monospace(10.0),
+            format_sci_tick(xv, x_span),
+            FontId::monospace(9.5),
             Color32::from_rgb(148, 163, 184),
         );
+        let y_lbl = if use_log_y {
+            format_sci_tick(10.0_f64.powf(yv), (10.0_f64.powf(y_max) - 10.0_f64.powf(y_min)).abs())
+        } else {
+            format_sci_tick(yv, y_span)
+        };
         painter.text(
             Pos2::new(plot_rect.left() - 5.0, sy),
             Align2::RIGHT_CENTER,
-            format!("{:.2}", yv),
-            FontId::monospace(10.0),
+            y_lbl,
+            FontId::monospace(9.5),
             Color32::from_rgb(148, 163, 184),
         );
     }
@@ -223,8 +329,9 @@ pub fn draw_scientific_plot_ex(
     // Shaded credible interval ribbons (adjacent convex quads)
     for bnd in bands {
         for pair in bnd.bounds.windows(2) {
-            let [x0, l0, h0] = pair[0];
-            let [x1, l1, h1] = pair[1];
+            let [x0, yl0, yh0] = pair[0];
+            let [x1, yl1, yh1] = pair[1];
+            let (l0, h0, l1, h1) = (map_y(yl0), map_y(yh0), map_y(yl1), map_y(yh1));
             let p_tl = to_screen(x0, h0.max(l0));
             let p_tr = to_screen(x1, h1.max(l1));
             let p_br = to_screen(x1, l1.min(h1));
@@ -239,9 +346,10 @@ pub fn draw_scientific_plot_ex(
 
     // Horizontal threshold markers
     for hm in hmarkers {
-        if hm.y >= y_min && hm.y <= y_max {
-            let pl = to_screen(x_min, hm.y);
-            let pr = to_screen(x_max, hm.y);
+        let my = map_y(hm.y);
+        if my >= y_min && my <= y_max {
+            let pl = to_screen(x_min, my);
+            let pr = to_screen(x_max, my);
             painter.line_segment([pl, pr], Stroke::new(1.1_f32, hm.color));
         }
     }
@@ -274,21 +382,21 @@ pub fn draw_scientific_plot_ex(
         if s.as_dots {
             let stride = (s.points.len() / 2200).max(1);
             for pt in s.points.iter().step_by(stride) {
-                let p = to_screen(pt[0], pt[1]);
+                let p = to_screen(pt[0], map_y(pt[1]));
                 painter.circle_filled(p, s.dot_radius, s.color);
             }
         } else {
             let stride = (s.points.len() / 700).max(1);
             let mut prev: Option<Pos2> = None;
             for pt in s.points.iter().step_by(stride) {
-                let cur = to_screen(pt[0], pt[1]);
+                let cur = to_screen(pt[0], map_y(pt[1]));
                 if let Some(p0) = prev {
                     painter.line_segment([p0, cur], Stroke::new(s.width, s.color));
                 }
                 prev = Some(cur);
             }
             if let Some(&last_pt) = s.points.last() {
-                let cur = to_screen(last_pt[0], last_pt[1]);
+                let cur = to_screen(last_pt[0], map_y(last_pt[1]));
                 if let Some(p0) = prev {
                     painter.line_segment([p0, cur], Stroke::new(s.width, s.color));
                 }
@@ -307,12 +415,13 @@ pub fn draw_scientific_plot_ex(
                 Stroke::new(0.8_f32, Color32::from_rgba_unmultiplied(226, 232, 240, 110)),
             );
             let hx = x_min + ((hp.x - plot_rect.left()) / plot_rect.width()) as f64 * (x_max - x_min);
-            let hy = y_max - ((hp.y - plot_rect.top()) / plot_rect.height()) as f64 * (y_max - y_min);
+            let hy_raw = y_max - ((hp.y - plot_rect.top()) / plot_rect.height()) as f64 * (y_max - y_min);
+            let hy_disp = if use_log_y { 10.0_f64.powf(hy_raw) } else { hy_raw };
             painter.text(
                 Pos2::new(plot_rect.right() - 6.0, plot_rect.top() + 6.0),
                 Align2::RIGHT_TOP,
-                format!("x = {:.3}, y = {:.3}", hx, hy),
-                FontId::monospace(11.0),
+                format!("x = {}, y = {}", format_sci_tick(hx, x_span), format_sci_tick(hy_disp, y_span)),
+                FontId::monospace(10.5),
                 Color32::from_rgb(248, 250, 252),
             );
         }
@@ -409,7 +518,19 @@ pub fn render_time_series_tab(ui: &mut Ui, mod_id: ModuleId, workset: &WorksetSt
         .collect();
 
     let main_h = (ui.available_height() * 0.56).max(210.0);
-    draw_scientific_plot(ui, "main_ts", main_h, &series_list, &[], &vmarkers);
+    draw_scientific_plot_titled(
+        ui,
+        "main_ts",
+        main_h,
+        "Time / Generation t",
+        "Abundance / Frequency",
+        true,
+        &[],
+        &series_list,
+        &[],
+        &vmarkers,
+        &[],
+    );
 
     ui.add_space(6.0);
     ui.label(
@@ -429,7 +550,19 @@ pub fn render_time_series_tab(ui: &mut Ui, mod_id: ModuleId, workset: &WorksetSt
         dot_radius: 0.0,
     }];
     let sub_h = (ui.available_height() - 28.0).max(145.0);
-    draw_scientific_plot(ui, "dd_plot", sub_h, &dd_series, &[], &[]);
+    draw_scientific_plot_titled(
+        ui,
+        "dd_plot",
+        sub_h,
+        "Primary Abundance N",
+        "Per-Capita Growth Rate (1/N dN/dt)",
+        false,
+        &[],
+        &dd_series,
+        &[],
+        &[],
+        &[],
+    );
 }
 
 pub fn render_phase_portrait_tab(ui: &mut Ui, mod_id: ModuleId, workset: &WorksetState) {
@@ -468,7 +601,7 @@ pub fn render_phase_portrait_tab(ui: &mut Ui, mod_id: ModuleId, workset: &Workse
                 x: sim.r_param,
                 color: Color32::from_rgb(250, 204, 21),
             }];
-            draw_scientific_plot(ui, "may_bif", plot_h, &s, &[], &vm);
+            draw_scientific_plot_titled(ui, "may_bif", plot_h, "Intrinsic Growth r", "Asymptotic Equilibrium N*", false, &[], &s, &[], &vm, &[]);
         }
 
         ModuleId::T5WrightLandscape => {
@@ -506,7 +639,7 @@ pub fn render_phase_portrait_tab(ui: &mut Ui, mod_id: ModuleId, workset: &Workse
                 as_dots: true,
                 dot_radius: 6.5,
             });
-            draw_scientific_plot(ui, "t5_contour_map", plot_h, &series_vec, &[], &[]);
+            draw_scientific_plot_titled(ui, "t5_contour_map", plot_h, "Trait Axis X", "Trait Axis Y", false, &[], &series_vec, &[], &[], &[]);
         }
 
         ModuleId::T6LeslieLefkovitch => {
@@ -538,7 +671,7 @@ pub fn render_phase_portrait_tab(ui: &mut Ui, mod_id: ModuleId, workset: &Workse
                 as_dots: false,
                 dot_radius: 0.0,
             }];
-            draw_scientific_plot(ui, "t6_elasticity_bars", plot_h, &s, &bars, &[]);
+            draw_scientific_plot_titled(ui, "t6_elasticity_bars", plot_h, "Stage Index j", "Share / Elasticity (%)", false, &[], &s, &bars, &[], &[]);
         }
 
         ModuleId::T4KingmanCoalescent => {
@@ -570,7 +703,7 @@ pub fn render_phase_portrait_tab(ui: &mut Ui, mod_id: ModuleId, workset: &Workse
                 as_dots: false,
                 dot_radius: 0.0,
             }];
-            draw_scientific_plot(ui, "sfs_plot", plot_h, &s, &bars, &[]);
+            draw_scientific_plot_titled(ui, "sfs_plot", plot_h, "Derived Count Class i", "Mean Polymorphic Sites", false, &[], &s, &bars, &[], &[]);
         }
 
         _ => {
@@ -658,7 +791,7 @@ pub fn render_phase_portrait_tab(ui: &mut Ui, mod_id: ModuleId, workset: &Workse
                 }
             }
 
-            draw_scientific_plot(ui, "phase_plane", plot_h, &series_vec, &[], &vmarkers);
+            draw_scientific_plot_titled(ui, "phase_plane", plot_h, names[0], y_label, false, &[], &series_vec, &[], &vmarkers, &[]);
         }
     }
 }

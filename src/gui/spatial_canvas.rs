@@ -324,6 +324,8 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
             let cw = inner.width() / (sim.cols as f32);
             let ch = inner.height() / (sim.rows as f32);
             let barrier_w = (sim.vaseline_barrier as f32) * 5.0;
+            let hover_pos = response.hover_pos();
+            let mut hovered_patch: Option<(usize, usize, usize, Rect)> = None;
 
             for r in 0..sim.rows {
                 for c in 0..sim.cols {
@@ -366,10 +368,26 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
                         FontId::monospace(10.5),
                         Color32::WHITE,
                     );
+                    if hover_pos.is_some_and(|hp| cell.contains(hp)) {
+                        hovered_patch = Some((r, c, idx, cell));
+                    }
                 }
             }
+            if let Some((r, c, idx, cell)) = hovered_patch {
+                draw_box_outline(&painter, cell.shrink(2.0), Stroke::new(1.8_f32, Color32::WHITE));
+                response.clone().on_hover_text(format!(
+                    "Orange Patch ({}, {}) [#{}/24]\nPrey (Eotetranychus): {:.1} / K = {:.0}\nPredator (Typhlodromus): {:.2}\nVaseline Barrier: {:.0}%",
+                    r + 1,
+                    c + 1,
+                    idx + 1,
+                    sim.prey_patches[idx],
+                    sim.k_patch,
+                    sim.pred_patches[idx],
+                    sim.vaseline_barrier * 100.0
+                ));
+            }
             ui.label(format!(
-                "Huffaker 6x4 Orange Tray: Bright orange = Eotetranychus prey density | Red halo = Typhlodromus predators | Gray border width = Vaseline barrier ({:.0}%)",
+                "Huffaker 6x4 Orange Tray: Bright orange = Eotetranychus prey | Red halo = Typhlodromus predators | Hover patch for telemetry (Barrier {:.0}%)",
                 sim.vaseline_barrier * 100.0
             ));
         }
@@ -493,6 +511,8 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
             let side = sim.grid_side.max(1);
             let cw = inner.width() / (side as f32);
             let ch = inner.height() / (side as f32);
+            let hover_pos = response.hover_pos();
+            let mut hovered_cell: Option<(usize, usize, usize, Rect)> = None;
             for r in 0..side {
                 for c in 0..side {
                     let idx = r * side + c;
@@ -511,21 +531,37 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
                         ),
                     );
                     painter.rect_filled(cell, CornerRadius::same(2), cell_col);
+                    if hover_pos.is_some_and(|hp| cell.contains(hp)) {
+                        hovered_cell = Some((r, c, idx, cell));
+                    }
                 }
             }
+            if let Some((r, c, idx, cell)) = hovered_cell {
+                draw_box_outline(&painter, cell, Stroke::new(1.5_f32, Color32::WHITE));
+                response.clone().on_hover_text(format!(
+                    "Agar Grid Cell ({}, {})\nHost E. coli Lawn: {:.1}%\nT4 Virion Density: {:.2} PFU/unit",
+                    r + 1,
+                    c + 1,
+                    sim.agar_lawn[idx] * 100.0,
+                    sim.agar_phage[idx]
+                ));
+            }
             ui.label(format!(
-                "Agar Lawn Plaque Assay: Turbid green = E. coli lawn | Dark/amber lytic rings = Expanding T4 Bacteriophage plaques | Resistant R = {:.2}",
+                "Agar Lawn Plaque Assay: Green = E. coli lawn | Amber/Dark = Expanding T4 plaques (Hover cell) | Resistant R = {:.2}",
                 sim.resistant_bact
             ));
         }
 
         ModuleId::T1LevinsMetapop => {
             let sim = &workset.t1_levins;
+            let mut deg = vec![0usize; sim.patches.len()];
             for i in 0..sim.patches.len() {
                 for j in (i + 1)..sim.patches.len() {
                     let dx = sim.patches[i].x - sim.patches[j].x;
                     let dy = sim.patches[i].y - sim.patches[j].y;
                     if dx * dx + dy * dy < 0.032 && !sim.patches[i].destroyed && !sim.patches[j].destroyed {
+                        deg[i] += 1;
+                        deg[j] += 1;
                         let p1 = Pos2::new(
                             inner.left() + sim.patches[i].x as f32 * inner.width(),
                             inner.top() + sim.patches[i].y as f32 * inner.height(),
@@ -541,7 +577,10 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
                     }
                 }
             }
-            for patch in &sim.patches {
+            let hover_pos = response.hover_pos();
+            let mut hovered_patch: Option<(usize, Pos2)> = None;
+            let mut best_d2 = 13.0_f32 * 13.0_f32;
+            for (idx, patch) in sim.patches.iter().enumerate() {
                 let center = Pos2::new(
                     inner.left() + patch.x as f32 * inner.width(),
                     inner.top() + patch.y as f32 * inner.height(),
@@ -561,9 +600,36 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
                         Stroke::new(1.5_f32, Color32::from_rgb(148, 163, 184)),
                     );
                 }
+                if let Some(hp) = hover_pos {
+                    let d2 = center.distance_sq(hp);
+                    if d2 <= best_d2 {
+                        best_d2 = d2;
+                        hovered_patch = Some((idx, center));
+                    }
+                }
+            }
+            if let Some((idx, center)) = hovered_patch {
+                let patch = &sim.patches[idx];
+                painter.circle_stroke(center, 10.5, Stroke::new(1.8_f32, Color32::WHITE));
+                let st_lbl = if patch.destroyed {
+                    "Destroyed Habitat"
+                } else if patch.occupied {
+                    "Occupied Subpopulation"
+                } else {
+                    "Empty Suitable Patch"
+                };
+                response.clone().on_hover_text(format!(
+                    "Habitat Patch #{}/{}\nStatus: {}\nConnected Neighbors: {}\nCoords: ({:.2}, {:.2})",
+                    idx + 1,
+                    sim.patches.len(),
+                    st_lbl,
+                    deg[idx],
+                    patch.x,
+                    patch.y
+                ));
             }
             ui.label(format!(
-                "64-Patch Landscape: Solid Green = Occupied | Hollow Gray = Empty Suitable | Dark Red = Destroyed Habitat (h = {:.1}%, critical h_crit = {:.1}%)",
+                "64-Patch Landscape: Green = Occupied | Gray = Empty Suitable | Red = Destroyed (Hover patch | h = {:.1}%, h_crit = {:.1}%)",
                 sim.destruction_h * 100.0,
                 sim.critical_destruction_threshold() * 100.0
             ));
@@ -720,24 +786,36 @@ pub fn render_spatial_canvas(ui: &mut Ui, mod_id: ModuleId, workset: &mut Workse
         }
 
         ModuleId::T5WrightLandscape => {
-            // Interactive mouse-drag 3D orbit camera
+            // Interactive mouse-drag 3D orbit camera + scroll-wheel zoom
             let sim = &mut workset.t5_landscape;
             if response.dragged() {
                 let delta = response.drag_delta();
                 sim.camera_azimuth_deg = (sim.camera_azimuth_deg + (delta.x as f64) * 0.45).rem_euclid(360.0);
                 sim.camera_elevation_deg = (sim.camera_elevation_deg + (delta.y as f64) * 0.35).clamp(12.0, 72.0);
             }
+            if response.hovered() {
+                let scroll_y = ui.input(|i| i.smooth_scroll_delta.y);
+                if scroll_y.abs() > 0.01 {
+                    sim.camera_zoom = (sim.camera_zoom * (1.0 + (scroll_y as f64) * 0.0018)).clamp(0.55, 2.40);
+                }
+            }
 
             let geom = build_wright_surface_geometry(sim, inner);
-            render_wright_surface_geometry(&painter, &geom);
+            render_wright_surface_geometry(&painter, inner, &geom);
 
-            ui.label(format!(
-                "Drag mouse on 3D surface to rotate (Azimuth = {:.0} deg, Elevation = {:.0} deg) | {} Demes (N_e = {:.0}) evolving via Drift + Steepest Ascent + Fitness-Weighted Dispersion",
-                sim.camera_azimuth_deg,
-                sim.camera_elevation_deg,
-                sim.demes.len(),
-                sim.effective_ne
-            ));
+            ui.horizontal_wrapped(|ui| {
+                if ui.small_button("Reset 3D View").clicked() {
+                    sim.reset_3d_view();
+                }
+                ui.label(format!(
+                    "Drag orbit | Scroll zoom ({:.2}x) | Az={:.0} deg, El={:.0} deg | {} Demes (N_e = {:.0})",
+                    sim.camera_zoom,
+                    sim.camera_azimuth_deg,
+                    sim.camera_elevation_deg,
+                    sim.demes.len(),
+                    sim.effective_ne
+                ));
+            });
         }
 
         ModuleId::T6LeslieLefkovitch => {
@@ -926,9 +1004,18 @@ pub struct WrightDemePin {
 }
 
 #[derive(Debug, Clone)]
+pub struct WrightAxisLabel {
+    pub pos: Pos2,
+    pub text: String,
+    pub color: Color32,
+}
+
+#[derive(Debug, Clone)]
 pub struct WrightSurfaceGeometry {
     pub triangles: Vec<WrightSurfaceTri>,
     pub wire_edges: Vec<WrightEdgeSeg>,
+    pub axis_edges: Vec<WrightEdgeSeg>,
+    pub axis_labels: Vec<WrightAxisLabel>,
     pub trails: Vec<WrightEdgeSeg>,
     pub deme_pins: Vec<WrightDemePin>,
     pub peak1_label_pos: Pos2,
@@ -942,6 +1029,33 @@ fn wright_fitness_color(mean_w: f64) -> Color32 {
         (65.0 + 145.0 * (1.0 - (t - 0.55).abs() * 1.4).clamp(0.0, 1.0)) as u8,
         (135.0 - 90.0 * t) as u8,
     )
+}
+
+fn shade_wright_triangle(base: Color32, p0: [f64; 3], p1: [f64; 3], p2: [f64; 3]) -> Color32 {
+    let u = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]];
+    let v = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]];
+    let mut nx = u[1] * v[2] - u[2] * v[1];
+    let mut ny = u[2] * v[0] - u[0] * v[2];
+    let mut nz = u[0] * v[1] - u[1] * v[0];
+    if nz < 0.0 {
+        nx = -nx;
+        ny = -ny;
+        nz = -nz;
+    }
+    let n_len = (nx * nx + ny * ny + nz * nz).sqrt().max(1e-9);
+    let (nx, ny, nz) = (nx / n_len, ny / n_len, nz / n_len);
+    // Directional sunlight + viewer half-vector for Lambertian + Blinn-Phong relief shading
+    let (lx, ly, lz) = (0.42_f64, -0.52_f64, 0.743_f64);
+    let diff = (nx * lx + ny * ly + nz * lz).clamp(0.0, 1.0);
+    let (hx, hy, hz) = (0.21_f64, -0.58_f64, 0.787_f64);
+    let h_len = (hx * hx + hy * hy + hz * hz).sqrt();
+    let ndoth = ((nx * hx + ny * hy + nz * hz) / h_len).clamp(0.0, 1.0);
+    let spec = ndoth.powi(24) * 0.28;
+    let amb_diff = 0.42 + 0.62 * diff;
+    let r = (base.r() as f64 * amb_diff + 255.0 * spec).clamp(0.0, 255.0) as u8;
+    let g = (base.g() as f64 * amb_diff + 255.0 * spec).clamp(0.0, 255.0) as u8;
+    let b = (base.b() as f64 * amb_diff + 255.0 * spec).clamp(0.0, 255.0) as u8;
+    Color32::from_rgb(r, g, b)
 }
 
 pub fn project_wright_point(
@@ -985,9 +1099,9 @@ pub fn build_wright_surface_geometry(
     let el = sim.camera_elevation_deg.to_radians();
     let (sin_az, cos_az) = az.sin_cos();
     let (sin_el, cos_el) = el.sin_cos();
-    let cx_scr = inner.center().x;
+    let cx_scr = inner.center().x - 18.0;
     let cy_scr = inner.center().y + inner.height() * 0.14;
-    let scale = inner.width().min(inner.height()) * 0.62;
+    let scale = inner.width().min(inner.height()) * 0.62 * (sim.camera_zoom as f32).clamp(0.55, 2.40);
 
     let project = |ux: f64, uy: f64, wz: f64| -> (Pos2, f64) {
         project_wright_point(
@@ -996,14 +1110,14 @@ pub fn build_wright_surface_geometry(
     };
 
     const G_N: usize = 22;
-    let mut grid = vec![vec![(Pos2::ZERO, 0.0f64, 0.0f64); G_N + 1]; G_N + 1];
+    let mut grid = vec![vec![(Pos2::ZERO, 0.0f64, 0.0f64, [0.0f64; 3]); G_N + 1]; G_N + 1];
     for (i, row) in grid.iter_mut().enumerate() {
         let x = i as f64 / G_N as f64;
         for (j, cell) in row.iter_mut().enumerate() {
             let y = j as f64 / G_N as f64;
             let w = sim.fitness_at(x, y);
             let (p, d) = project(x, y, w);
-            *cell = (p, d, w);
+            *cell = (p, d, w, [x - 0.5, y - 0.5, (w - 0.45) * 0.52]);
         }
     }
 
@@ -1013,20 +1127,23 @@ pub fn build_wright_surface_geometry(
 
     for i in 0..G_N {
         for j in 0..G_N {
-            let (p00, d00, w00) = grid[i][j];
-            let (p10, d10, w10) = grid[i + 1][j];
-            let (p11, d11, w11) = grid[i + 1][j + 1];
-            let (p01, d01, w01) = grid[i][j + 1];
+            let (p00, d00, w00, v00) = grid[i][j];
+            let (p10, d10, w10, v10) = grid[i + 1][j];
+            let (p11, d11, w11, v11) = grid[i + 1][j + 1];
+            let (p01, d01, w01, v01) = grid[i][j + 1];
+
+            let c0 = shade_wright_triangle(wright_fitness_color((w00 + w10 + w11) / 3.0), v00, v10, v11);
+            let c1 = shade_wright_triangle(wright_fitness_color((w00 + w11 + w01) / 3.0), v00, v11, v01);
 
             triangles.push(WrightSurfaceTri {
                 depth: (d00 + d10 + d11) / 3.0,
                 pos: [p00, p10, p11],
-                color: wright_fitness_color((w00 + w10 + w11) / 3.0),
+                color: c0,
             });
             triangles.push(WrightSurfaceTri {
                 depth: (d00 + d11 + d01) / 3.0,
                 pos: [p00, p11, p01],
-                color: wright_fitness_color((w00 + w11 + w01) / 3.0),
+                color: c1,
             });
 
             wire_edges.push(WrightEdgeSeg {
@@ -1062,6 +1179,52 @@ pub fn build_wright_surface_geometry(
                 });
             }
         }
+    }
+
+    // 3D X / Y / W_bar reference axes and ticks along domain corner (0, 0, 0.35)
+    let base_z = 0.35_f64;
+    let (p_orig, d_orig) = project(0.0, 0.0, base_z);
+    let (p_xend, d_xend) = project(1.04, 0.0, base_z);
+    let (p_yend, d_yend) = project(0.0, 1.04, base_z);
+    let (p_zend, d_zend) = project(0.0, 0.0, 1.62);
+    let axis_col = Color32::from_rgb(148, 163, 184);
+    let axis_edges = vec![
+        WrightEdgeSeg {
+            depth: 0.5 * (d_orig + d_xend),
+            a: p_orig,
+            b: p_xend,
+            color: Color32::from_rgb(248, 113, 113),
+            width: 1.5,
+        },
+        WrightEdgeSeg {
+            depth: 0.5 * (d_orig + d_yend),
+            a: p_orig,
+            b: p_yend,
+            color: Color32::from_rgb(74, 222, 128),
+            width: 1.5,
+        },
+        WrightEdgeSeg {
+            depth: 0.5 * (d_orig + d_zend),
+            a: p_orig,
+            b: p_zend,
+            color: Color32::from_rgb(56, 189, 248),
+            width: 1.5,
+        },
+    ];
+    let mut axis_labels = vec![
+        WrightAxisLabel { pos: p_xend, text: "Trait X".to_string(), color: Color32::from_rgb(248, 113, 113) },
+        WrightAxisLabel { pos: p_yend, text: "Trait Y".to_string(), color: Color32::from_rgb(74, 222, 128) },
+        WrightAxisLabel { pos: p_zend, text: "W_bar".to_string(), color: Color32::from_rgb(56, 189, 248) },
+    ];
+    for t in [0.5_f64, 1.0_f64] {
+        let (px, _) = project(t, 0.0, base_z);
+        axis_labels.push(WrightAxisLabel { pos: px, text: format!("{:.1}", t), color: axis_col });
+        let (py, _) = project(0.0, t, base_z);
+        axis_labels.push(WrightAxisLabel { pos: py, text: format!("{:.1}", t), color: axis_col });
+    }
+    for wz in [0.6_f64, 1.0_f64, 1.4_f64] {
+        let (pz, _) = project(0.0, 0.0, wz);
+        axis_labels.push(WrightAxisLabel { pos: Pos2::new(pz.x - 10.0, pz.y), text: format!("{:.1}", wz), color: axis_col });
     }
 
     let palette = [
@@ -1105,6 +1268,8 @@ pub fn build_wright_surface_geometry(
     WrightSurfaceGeometry {
         triangles,
         wire_edges,
+        axis_edges,
+        axis_labels,
         trails,
         deme_pins,
         peak1_label_pos,
@@ -1129,7 +1294,7 @@ fn push_mesh_line_quad(mesh: &mut Mesh, a: Pos2, b: Pos2, width: f32, color: Col
     mesh.add_triangle(base_idx, base_idx + 2, base_idx + 3);
 }
 
-fn render_wright_surface_geometry(painter: &Painter, geom: &WrightSurfaceGeometry) {
+fn render_wright_surface_geometry(painter: &Painter, inner: Rect, geom: &WrightSurfaceGeometry) {
     #[derive(Clone, Copy)]
     enum DrawItem {
         Tri(usize),
@@ -1201,6 +1366,60 @@ fn render_wright_surface_geometry(painter: &Painter, geom: &WrightSurfaceGeometr
         }
     }
     flush_mesh(painter, &mut mesh);
+
+    for axis in &geom.axis_edges {
+        painter.line_segment([axis.a, axis.b], Stroke::new(axis.width, axis.color));
+    }
+    for lbl in &geom.axis_labels {
+        painter.text(
+            lbl.pos,
+            Align2::CENTER_CENTER,
+            &lbl.text,
+            FontId::monospace(9.5),
+            lbl.color,
+        );
+    }
+
+    // Fitness W_bar Colorbar along right edge of 3D viewport
+    let bar_w = 14.0_f32;
+    let bar_top = inner.top() + 26.0;
+    let bar_bot = inner.bottom() - 26.0;
+    let bar_x = inner.right() - 40.0;
+    if bar_bot > bar_top + 40.0 && bar_x > inner.left() + 80.0 {
+        painter.text(
+            Pos2::new(bar_x + bar_w * 0.5, bar_top - 14.0),
+            Align2::CENTER_BOTTOM,
+            "W_bar",
+            FontId::monospace(10.0),
+            Color32::from_rgb(226, 232, 240),
+        );
+        let steps = 24usize;
+        let bh = bar_bot - bar_top;
+        for s in 0..steps {
+            let f0 = s as f32 / steps as f32;
+            let f1 = (s + 1) as f32 / steps as f32;
+            let w_val = 1.60 - 1.15 * (0.5 * (f0 + f1)) as f64;
+            let r_seg = Rect::from_min_max(
+                Pos2::new(bar_x, bar_top + f0 * bh),
+                Pos2::new(bar_x + bar_w, bar_top + f1 * bh),
+            );
+            painter.rect_filled(r_seg, CornerRadius::ZERO, wright_fitness_color(w_val));
+        }
+        draw_box_outline(
+            painter,
+            Rect::from_min_max(Pos2::new(bar_x, bar_top), Pos2::new(bar_x + bar_w, bar_bot)),
+            Stroke::new(1.0_f32, Color32::from_rgb(100, 116, 139)),
+        );
+        for (frac, txt) in [(0.0_f32, "1.60"), (0.52_f32, "1.00"), (1.0_f32, "0.45")] {
+            painter.text(
+                Pos2::new(bar_x + bar_w + 4.0, bar_top + frac * bh),
+                Align2::LEFT_CENTER,
+                txt,
+                FontId::monospace(9.0),
+                Color32::from_rgb(186, 200, 218),
+            );
+        }
+    }
 
     painter.text(
         geom.peak1_label_pos,

@@ -53,6 +53,10 @@ pub struct LandscapeDeme {
     pub trail: Vec<[f64; 3]>,
 }
 
+fn default_camera_zoom() -> f64 {
+    1.0
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WrightLandscapeSim {
     pub generation: usize,
@@ -66,9 +70,11 @@ pub struct WrightLandscapeSim {
     pub peak2_height: f64,
     /// Epistatic ruggedness / maladaptive valley depth separating the adaptive peaks
     pub valley_ruggedness: f64,
-    /// Interactive 3D camera angles (degrees) for rotating the 3D surface in the GUI
+    /// Interactive 3D camera angles (degrees) and zoom for rotating/zooming the 3D surface in the GUI
     pub camera_azimuth_deg: f64,
     pub camera_elevation_deg: f64,
+    #[serde(default = "default_camera_zoom")]
+    pub camera_zoom: f64,
     pub demes: Vec<LandscapeDeme>,
     pub current_phase: GrowthPhase,
     pub rng: SimRng,
@@ -89,6 +95,7 @@ impl Default for WrightLandscapeSim {
             valley_ruggedness: 0.32,
             camera_azimuth_deg: -38.0,
             camera_elevation_deg: 30.0,
+            camera_zoom: 1.0,
             demes: Vec::new(),
             current_phase: GrowthPhase::DriftSelectionTrajectory,
             rng: SimRng::new(1932),
@@ -105,9 +112,17 @@ impl WrightLandscapeSim {
     pub fn reset(&mut self) {
         let az = self.camera_azimuth_deg;
         let el = self.camera_elevation_deg;
+        let zm = self.camera_zoom;
         *self = Self::default();
         self.camera_azimuth_deg = az;
         self.camera_elevation_deg = el;
+        self.camera_zoom = zm;
+    }
+
+    pub fn reset_3d_view(&mut self) {
+        self.camera_azimuth_deg = -38.0;
+        self.camera_elevation_deg = 30.0;
+        self.camera_zoom = 1.0;
     }
 
     pub fn series_names(&self) -> [&'static str; 5] {

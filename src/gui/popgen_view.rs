@@ -20,7 +20,8 @@ use std::time::{Duration, Instant};
 use egui::{Align2, Color32, CornerRadius, FontId, Pos2, Rect, RichText, Sense, Stroke, Ui, Vec2};
 
 use crate::gui::plots_panel::{
-    draw_scientific_plot, draw_scientific_plot_ex, PlotBand, PlotBar, PlotHMarker, PlotSeries,
+    draw_scientific_plot, draw_scientific_plot_ex, draw_scientific_plot_titled, PlotBand, PlotBar,
+    PlotHMarker, PlotSeries,
 };
 use crate::haplotype_network::NetworkAlgorithm;
 use crate::popgen_alignment::{builtin_alignment_presets, GapHandling};
@@ -586,7 +587,7 @@ pub fn render_haplotype_network_view(
         let play_lbl = if emp.hap_sim_playing {
             "|| Pause Real-Time Evolution"
         } else {
-            "▶ Play Real-Time Drift/Mutation"
+            "> Play Real-Time Drift/Mutation"
         };
         if ui.button(RichText::new(play_lbl).strong()).clicked() {
             emp.hap_sim_playing = !emp.hap_sim_playing;
@@ -595,7 +596,7 @@ pub fn render_haplotype_network_view(
             emp.hap_sim_playing = false;
             emp.step_haplotype_evolution();
         }
-        if ui.button("↺ Reset Empirical Alignment").clicked() {
+        if ui.button("Reset Empirical Alignment").clicked() {
             emp.reset_haplotype_simulation();
         }
         ui.add(
@@ -974,10 +975,13 @@ pub fn render_skyline_and_expansion_view(ui: &mut Ui, emp: &mut EmpiricalWorkspa
                     dot_radius: 0.0,
                 },
             ];
-            draw_scientific_plot_ex(
+            draw_scientific_plot_titled(
                 ui,
                 "bsp_skyline_plot",
                 235.0,
+                "Time Backward (subs/site)",
+                if log_toggle { "log10 N_e(t)" } else { "Effective N_e(t)" },
+                false,
                 &cred_band,
                 &bsp_series,
                 &[],

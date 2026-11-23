@@ -458,11 +458,15 @@ pub fn analyze_alignment(
             total_mutations_eta += alleles.len() - 1;
             let minor_count = alleles.last().map(|x| x.1).unwrap_or(0);
             let second_count = alleles.get(1).map(|x| x.1).unwrap_or(0);
-            let is_sing = alleles.iter().any(|&(_, c)| c == 1);
+            let singleton_alleles = alleles.iter().filter(|&&(_, c)| c == 1).count();
+            let is_sing = singleton_alleles > 0;
+            let col_eta1 = if valid_n == 2 {
+                usize::from(is_sing)
+            } else {
+                singleton_alleles.min(alleles.len() - 1)
+            };
             let is_pars = second_count >= 2;
-            if is_sing {
-                singletons_eta1 += 1;
-            }
+            singletons_eta1 += col_eta1;
             if is_pars {
                 parsimony_inf += 1;
             }
@@ -554,8 +558,10 @@ pub fn analyze_alignment(
         let count = diff_hist_map.get(&d).copied().unwrap_or(0);
         mismatch_histogram.push((d, count));
         let freq = (count as f64) / (n_pairs as f64);
-        let delta = freq - prev_freq;
-        raggedness += delta * delta;
+        if d >= 1 {
+            let delta = freq - prev_freq;
+            raggedness += delta * delta;
+        }
         prev_freq = freq;
     }
     raggedness += prev_freq * prev_freq;
@@ -589,8 +595,8 @@ pub fn analyze_alignment(
         (None, None, None)
     };
 
-    // Fu & Li's (1993) D* and F* (unrooted intraspecific singleton neutrality tests)
-    let (fu_li_d_star, fu_li_f_star) = if n >= 4 && segregating_s > 0 {
+    // Fu & Li's (1993) / Simonsen et al. (1995) D* and F* (unrooted intraspecific singleton neutrality tests)
+    let (fu_li_d_star, fu_li_f_star) = if n >= 4 && total_mutations_eta > 0 {
         let a_n_plus_1 = a1 + 1.0 / nf;
         let c_n = if n == 2 {
             1.0
@@ -606,25 +612,19 @@ pub fn analyze_alignment(
             / (a1 * a1 + a2);
         let u_d_star = (nf / (nf - 1.0)) * (a1 - nf / (nf - 1.0)) - v_d_star;
 
-        let eta = s_f;
+        let eta = total_mutations_eta as f64;
         let eta_s = singletons_eta1 as f64;
         let denom_d = (u_d_star * eta + v_d_star * eta * eta).max(1e-12).sqrt();
         let d_star = ((nf / (nf - 1.0)) * eta - a1 * eta_s) / denom_d;
 
-        let v_f_star = (d_n
+        // Exact Simonsen, Churchill & Aquadro (1995) / Fu (1995) variance coefficients for unrooted F*
+        let a_theta_f = (nf + 1.0) / (3.0 * (nf - 1.0)) + (nf - 5.0) / nf;
+        let b_theta2_f = ((nf - 1.0) / nf).powi(2) * d_n
             + (2.0 * (nf * nf + nf + 3.0)) / (9.0 * nf * (nf - 1.0))
-            - (2.0 / (nf - 1.0))
-                * (4.0 * a2 - 6.0 + 8.0 / nf))
-            / (a1 * a1 + a2);
-        let u_f_star = (nf / (nf - 1.0)
-            + (nf + 1.0) / (3.0 * (nf - 1.0))
-            - 4.0 / (nf * (nf - 1.0))
-            + ((2.0 * (nf + 1.0)) / ((nf - 1.0) * (nf - 1.0))) * (a_n_plus_1 - 2.0 * nf / (nf + 1.0)))
-            / a1
-            - v_f_star;
-        let denom_f = (u_f_star.max(0.01) * eta + v_f_star.max(0.001) * eta * eta)
-            .max(1e-12)
-            .sqrt();
+            - (2.0 * (4.0 * a1 + 2.0 - nf)) / (nf * nf);
+        let v_f_star = b_theta2_f / (a1 * a1 + a2);
+        let u_f_star = (a_theta_f / a1) - v_f_star;
+        let denom_f = (u_f_star * eta + v_f_star * eta * eta).max(1e-12).sqrt();
         let f_star = (mean_pairwise_diffs_k - ((nf - 1.0) / nf) * eta_s) / denom_f;
         (Some(d_star), Some(f_star))
     } else {

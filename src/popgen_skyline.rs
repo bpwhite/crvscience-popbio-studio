@@ -685,49 +685,29 @@ pub fn run_skyline_and_expansion(
     let mut accepted = 0usize;
 
     for iter in 0..total_iters {
-        proposals += 1;
         if m_groups == 1 || rng.next_f64() < 0.78 {
             // Log-normal scale multiplier proposal on a random group's theta_g
             let g = rng.gen_index(m_groups);
-            let old_val = group_thetas[g];
             let delta = rng.standard_normal() * 0.32;
-            let new_val = (old_val * delta.exp()).clamp(1e-8, 50.0);
-            group_thetas[g] = new_val;
-            let new_lp = bsp_log_posterior(&intervals, &group_sizes, &group_thetas);
-            // Hastings ratio for log-scale random walk is `new_val / old_val` -> `+ delta` in log space
-            let log_alpha = (new_lp - cur_lp) + delta;
-            if log_alpha >= 0.0 || rng.next_f64().ln() < log_alpha {
-                cur_lp = new_lp;
+            let u = rng.next_f64();
+            proposals += 1;
+            if bsp_try_scale_move(&intervals, &group_sizes, &mut group_thetas, g, delta, u, &mut cur_lp) {
                 accepted += 1;
-            } else {
-                group_thetas[g] = old_val;
             }
         } else {
             // Shift a group boundary by +/- 1 coalescent interval between adjacent groups `g` and `g+1`
             let g = rng.gen_index(m_groups - 1);
             let move_right = rng.next_f64() < 0.5;
-            if move_right && group_sizes[g] > 1 {
-                group_sizes[g] -= 1;
-                group_sizes[g + 1] += 1;
-                let new_lp = bsp_log_posterior(&intervals, &group_sizes, &group_thetas);
-                if new_lp >= cur_lp || rng.next_f64().ln() < (new_lp - cur_lp) {
-                    cur_lp = new_lp;
+            let u = rng.next_f64();
+            match bsp_try_boundary_move(&intervals, &mut group_sizes, &group_thetas, g, move_right, u, &mut cur_lp) {
+                Some(true) => {
+                    proposals += 1;
                     accepted += 1;
-                } else {
-                    group_sizes[g] += 1;
-                    group_sizes[g + 1] -= 1;
                 }
-            } else if !move_right && group_sizes[g + 1] > 1 {
-                group_sizes[g] += 1;
-                group_sizes[g + 1] -= 1;
-                let new_lp = bsp_log_posterior(&intervals, &group_sizes, &group_thetas);
-                if new_lp >= cur_lp || rng.next_f64().ln() < (new_lp - cur_lp) {
-                    cur_lp = new_lp;
-                    accepted += 1;
-                } else {
-                    group_sizes[g] -= 1;
-                    group_sizes[g + 1] += 1;
+                Some(false) => {
+                    proposals += 1;
                 }
+                None => {} // Skipped invalid boundary move: do not count in `proposals`
             }
         }
 
@@ -910,6 +890,80 @@ impl SkylineAndExpansionReport {
             ));
         }
         csv
+    }
+}
+
+/// Counts valid single-interval boundary shifts across adjacent skyline groups.
+pub fn bsp_count_valid_boundary_moves(sizes: &[usize]) -> usize {
+    let mut cnt = 0usize;
+    for idx in 0..sizes.len().saturating_sub(1) {
+        if sizes[idx] > 1 {
+            cnt += 1;
+        }
+        if sizes[idx + 1] > 1 {
+            cnt += 1;
+        }
+    }
+    cnt
+}
+
+/// Log-normal scale proposal on `group_thetas[g]` rejecting out-of-bounds draws (`[1e-8, 50.0]`)
+/// instead of clamping, preserving detailed balance with exact Jacobian `+delta`.
+pub fn bsp_try_scale_move(
+    intervals: &[CoalescentInterval],
+    group_sizes: &[usize],
+    group_thetas: &mut [f64],
+    g: usize,
+    delta: f64,
+    u: f64,
+    cur_lp: &mut f64,
+) -> bool {
+    let old_val = group_thetas[g];
+    let proposed = old_val * delta.exp();
+    if !proposed.is_finite() || !(1e-8..=50.0).contains(&proposed) {
+        return false;
+    }
+    group_thetas[g] = proposed;
+    let new_lp = bsp_log_posterior(intervals, group_sizes, group_thetas);
+    let log_alpha = (new_lp - *cur_lp) + delta;
+    if log_alpha >= 0.0 || u.max(1e-300).ln() < log_alpha {
+        *cur_lp = new_lp;
+        true
+    } else {
+        group_thetas[g] = old_val;
+        false
+    }
+}
+
+/// Adjacent-group boundary shift with exact Hastings ratio `ln(N_valid(cur) / N_valid(next))`.
+/// Returns `None` when the selected donor group has size 1 (skipped move, excluded from `proposals`).
+pub fn bsp_try_boundary_move(
+    intervals: &[CoalescentInterval],
+    group_sizes: &mut [usize],
+    group_thetas: &[f64],
+    g: usize,
+    move_right: bool,
+    u: f64,
+    cur_lp: &mut f64,
+) -> Option<bool> {
+    let (donor, recv) = if move_right { (g, g + 1) } else { (g + 1, g) };
+    if group_sizes[donor] <= 1 {
+        return None;
+    }
+    let n_valid_cur = bsp_count_valid_boundary_moves(group_sizes);
+    group_sizes[donor] -= 1;
+    group_sizes[recv] += 1;
+    let n_valid_next = bsp_count_valid_boundary_moves(group_sizes);
+    let new_lp = bsp_log_posterior(intervals, group_sizes, group_thetas);
+    let log_hastings = (n_valid_cur as f64).ln() - (n_valid_next as f64).ln();
+    let log_alpha = (new_lp - *cur_lp) + log_hastings;
+    if log_alpha >= 0.0 || u.max(1e-300).ln() < log_alpha {
+        *cur_lp = new_lp;
+        Some(true)
+    } else {
+        group_sizes[donor] += 1;
+        group_sizes[recv] -= 1;
+        Some(false)
     }
 }
 
