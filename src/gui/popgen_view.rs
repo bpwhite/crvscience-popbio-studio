@@ -280,6 +280,54 @@ pub fn render_empirical_controls(
                 }
             });
             ui.horizontal_wrapped(|ui| {
+                if ui.button("PopGen Digest JSON...").clicked() {
+                    if let Some(sum) = &emp.summary {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("JSON Digest", &["json"])
+                            .set_file_name("popgen_summary_digest.json")
+                            .save_file()
+                        {
+                            match sum.to_digest_json().and_then(|txt| {
+                                write_export_file(&path, &txt, "PopGen Summary Digest JSON")
+                            }) {
+                                Ok(msg) => {
+                                    emp.last_error = None;
+                                    *status_msg = msg;
+                                }
+                                Err(err) => {
+                                    emp.last_error = Some(err.clone());
+                                    *status_msg = err;
+                                }
+                            }
+                        }
+                    }
+                }
+                if ui.button("PopGen Digest CSV...").clicked() {
+                    if let Some(sum) = &emp.summary {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("CSV Table", &["csv"])
+                            .set_file_name("popgen_summary_digest.csv")
+                            .save_file()
+                        {
+                            match write_export_file(
+                                &path,
+                                &sum.to_digest_csv(),
+                                "PopGen Summary Digest CSV",
+                            ) {
+                                Ok(msg) => {
+                                    emp.last_error = None;
+                                    *status_msg = msg;
+                                }
+                                Err(err) => {
+                                    emp.last_error = Some(err.clone());
+                                    *status_msg = err;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            ui.horizontal_wrapped(|ui| {
                 if ui.button("Skyline CSV...").clicked() {
                     if let Some(sky) = &emp.skyline_report {
                         if let Some(path) = rfd::FileDialog::new()

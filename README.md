@@ -11,6 +11,7 @@
 ## Highlights Across the 4 Upgrade Pillars
 
 1. **Usability & Keyboard-First Controls**:
+   - Interactive **`Ctrl+K` Fuzzy Command Palette** jumping across all 19 dynamical/coalescent/empirical modules, skyline/network/sliding-window views, workspace tabs (`1`–`4`), and JSON/CSV/SVG/GEXF export actions.
    - Keyboard hotkeys guarded by `!ctx.wants_keyboard_input()`: `1`–`4` switch workspace tabs (`V1..T6`) or empirical modules (`E1..E4`), `Space` plays/pauses, `.` advances a single simulation step, `N` steps into the next biological growth phase, `R` resets the active module, `F1` toggles Help/Shortcuts, `F5`/`F9` quicksave/quickload SQLite slots, and `Esc` closes modals before returning to the Front Menu.
    - Detailed `.on_hover_text(...)` equations, physical units, and bifurcation threshold tooltips across parameter controls (`V1..T6` and `E1..E4`); ASCII-safe UI button labels without tofu-risk Unicode glyphs; mouse scroll-wheel zoom + one-click **Reset 3D View** on the Sewall Wright 3D landscape (`T5`); and scenario presets on dynamical/theoretical modules (`V1`, `V3`, `I1`, `T1`, `T2`, `T3`, `T5`, `T6`).
 2. **Scientific & Statistical Rigor**:
@@ -26,6 +27,7 @@
 
 | Input | Action | Notes |
 | --- | --- | --- |
+| `Ctrl+K` | Open Fuzzy Command Palette | Jump to any of 19 modules, views, or exports |
 | `1` – `4` | Switch workspace tab / empirical view | Switches Tabs `1..4` (`V1..T6`) or `E1..E4` (`E1..E4`) |
 | `Space` | Play / Pause simulation | Supports both dynamical models and `E2` haplotype drift |
 | `.` (Period) | Single simulation step | Steps active ODE/discrete/lattice module or `E2` generation |
@@ -47,18 +49,19 @@
 | `--screenshot-view <1..3>` | Headless preset (`1` Wright 3D, `2` Skyline, `3` Haplotype Network) | `1` |
 | `simulate [--module <SLUG>] [--steps 400] [--out simulation_output.csv]` | Run headless dynamical module & export time series + phases to CSV | — |
 | `analyze-fasta <INPUT> [options]` | Empirical FASTA/PHYLIP/NEXUS PopGen, Skyline MCMC, sliding windows, network | — |
+| `popgen-digest [--input <FILE>] [--out-json <JSON>] [--out-csv <CSV>]` | Reproducible multi-metric PopGen digest (`theta_W`, Tajima's `D`, Fu & Li `D*/F*`, Harpending `r`) | Built-in 4 presets |
 
-Key `analyze-fasta` flags: `--epsilon 0`, `--bsp-groups 4`, `--bsp-mcmc-steps 2500`, `--clock-rate 1e-7`, `--window-bp 24`, `--step-bp 6`, `--out-stats <JSON>`, `--out-skyline-csv <CSV>`, `--out-windows-csv <CSV>`, `--out-svg <SVG>`, `--out-gexf <GEXF>`.
+Key `analyze-fasta` flags: `--epsilon 0`, `--bsp-groups 4`, `--bsp-mcmc-steps 2500`, `--clock-rate 1e-7`, `--window-bp 24`, `--step-bp 6`, `--out-stats <JSON>`, `--out-digest-json <JSON>`, `--out-digest-csv <CSV>`, `--out-skyline-csv <CSV>`, `--out-windows-csv <CSV>`, `--out-svg <SVG>`, `--out-gexf <GEXF>`.
 
 ## Build & Validation
 
 ```powershell
-$env:CARGO_BUILD_JOBS='4'; cargo test --all-targets
+$env:CARGO_BUILD_JOBS='4'; cargo test --all-targets --release
 cargo run --release
 ```
 
-Observed `--all-targets` verification (`cargo test --all-targets`):
-- `src\lib.rs`: `16 passed; 0 failed` (zero warnings)
+Observed `--all-targets --release` verification (`30 passed; 0 failed`, zero warnings):
+- `src\lib.rs`: `17 passed; 0 failed` (includes PopGen summary digest JSON/CSV & edge-case tests)
 - `src\main.rs`: `1 passed; 0 failed`
 - `tests\popbio_integration.rs`: `12 passed; 0 failed` (verifies identical-sequence Harpending `r == 1.0`, tri-allelic `{A:6, C:1, G:1}` `eta == 2, singleton_sites_eta1 == 2` with exact Simonsen/Fu & Li `D*`/`F*`, BSP MCMC bounds rejection & boundary Hastings ratio, adaptive scientific tick formatting, hotkeys `1`–`4`/`R`/`.`/`N`, and all 19 modules stepping & exporting cleanly).
 

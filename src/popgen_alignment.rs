@@ -100,6 +100,154 @@ pub struct PopGenSummary {
     pub ld_pairs: Vec<LdPairStat>,
 }
 
+/// Reproducible multi-metric population genetics & neutrality summary digest
+/// (`Watterson's theta`, `Tajima's D`, `Fu & Li D*/F*`, and `Harpending raggedness`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PopGenSummaryDigest {
+    pub dataset_name: String,
+    pub num_sequences: usize,
+    pub alignment_length: usize,
+    pub effective_sites: usize,
+    pub segregating_sites_s: usize,
+    pub total_mutations_eta: usize,
+    pub singleton_sites_eta1: usize,
+    pub num_haplotypes_k: usize,
+    pub haplotype_diversity_hd: f64,
+    pub nucleotide_diversity_pi: f64,
+    pub watterson_theta_per_locus: f64,
+    pub watterson_theta_per_site: f64,
+    pub tajimas_d: Option<f64>,
+    pub tajimas_d_pval_normal: Option<f64>,
+    pub tajimas_d_pval_beta: Option<f64>,
+    pub fu_li_d_star: Option<f64>,
+    pub fu_li_f_star: Option<f64>,
+    pub harpending_raggedness: f64,
+    pub mean_hudson_fst: Option<f64>,
+    pub gc_content_pct: f64,
+    pub neutrality_classification: String,
+}
+
+fn csv_escape_popgen(raw: &str) -> String {
+    if raw.contains(',') || raw.contains('"') || raw.contains('\n') || raw.contains('\r') {
+        format!("\"{}\"", raw.replace('"', "\"\""))
+    } else {
+        raw.to_string()
+    }
+}
+
+fn fmt_opt_f64_csv_pg(v: Option<f64>, decimals: usize) -> String {
+    match v {
+        Some(x) if x.is_finite() => format!("{x:.decimals$}"),
+        _ => String::new(),
+    }
+}
+
+impl PopGenSummary {
+    /// Build a compact reproducible multi-metric `PopGenSummaryDigest`.
+    pub fn to_digest(&self) -> PopGenSummaryDigest {
+        let mean_hudson_fst = if self.pop_divergences.is_empty() {
+            None
+        } else {
+            let sum: f64 = self.pop_divergences.iter().map(|d| d.hudson_fst).sum();
+            Some(sum / (self.pop_divergences.len() as f64))
+        };
+        let neutrality_classification = match (self.tajimas_d, self.fu_li_d_star) {
+            (Some(td), _) if td <= -1.5 => "Negative Tajima's D (Expansion / Purifying Sweep)".to_string(),
+            (Some(td), _) if td >= 1.5 => "Positive Tajima's D (Balancing / Bottleneck / Structure)".to_string(),
+            (Some(_), Some(fl)) if fl <= -1.5 => "Excess Singletons (Fu & Li D* < -1.5)".to_string(),
+            (Some(_), _) => "Near-Neutral Equilibrium".to_string(),
+            (None, _) => "Insufficient Polymorphism / Sample Size".to_string(),
+        };
+        PopGenSummaryDigest {
+            dataset_name: self.dataset_name.clone(),
+            num_sequences: self.num_sequences,
+            alignment_length: self.alignment_length,
+            effective_sites: self.effective_sites,
+            segregating_sites_s: self.segregating_sites_s,
+            total_mutations_eta: self.total_mutations_eta,
+            singleton_sites_eta1: self.singleton_sites_eta1,
+            num_haplotypes_k: self.num_haplotypes_k,
+            haplotype_diversity_hd: self.haplotype_diversity_hd,
+            nucleotide_diversity_pi: self.nucleotide_diversity_pi,
+            watterson_theta_per_locus: self.watterson_theta_per_locus,
+            watterson_theta_per_site: self.watterson_theta_per_site,
+            tajimas_d: self.tajimas_d,
+            tajimas_d_pval_normal: self.tajimas_d_pval_normal,
+            tajimas_d_pval_beta: self.tajimas_d_pval_beta,
+            fu_li_d_star: self.fu_li_d_star,
+            fu_li_f_star: self.fu_li_f_star,
+            harpending_raggedness: self.harpending_raggedness,
+            mean_hudson_fst,
+            gc_content_pct: self.gc_content_pct,
+            neutrality_classification,
+        }
+    }
+
+    /// Export this summary's PopGen digest as deterministic pretty RFC 8259 JSON.
+    pub fn to_digest_json(&self) -> Result<String, String> {
+        serde_json::to_string_pretty(&self.to_digest())
+            .map_err(|e| format!("Failed to serialize PopGen digest JSON: {e}"))
+    }
+
+    /// Export this summary's PopGen digest as an RFC 4180 CSV table.
+    pub fn to_digest_csv(&self) -> String {
+        export_popgen_digests_csv(&[self.to_digest()])
+    }
+}
+
+/// Export one or more `PopGenSummaryDigest` rows to RFC 4180 CSV.
+pub fn export_popgen_digests_csv(digests: &[PopGenSummaryDigest]) -> String {
+    let mut out = String::from(
+        "dataset_name,num_sequences,alignment_length,effective_sites,segregating_sites_s,total_mutations_eta,singleton_sites_eta1,num_haplotypes_k,haplotype_diversity_hd,nucleotide_diversity_pi,watterson_theta_per_locus,watterson_theta_per_site,tajimas_d,tajimas_d_pval_normal,tajimas_d_pval_beta,fu_li_d_star,fu_li_f_star,harpending_raggedness,mean_hudson_fst,gc_content_pct,neutrality_classification\n",
+    );
+    for d in digests {
+        out.push_str(&format!(
+            "{},{},{},{},{},{},{},{},{:.6},{:.6},{:.6},{:.6},{},{},{},{},{},{:.6},{},{:.2},{}\n",
+            csv_escape_popgen(&d.dataset_name),
+            d.num_sequences,
+            d.alignment_length,
+            d.effective_sites,
+            d.segregating_sites_s,
+            d.total_mutations_eta,
+            d.singleton_sites_eta1,
+            d.num_haplotypes_k,
+            d.haplotype_diversity_hd,
+            d.nucleotide_diversity_pi,
+            d.watterson_theta_per_locus,
+            d.watterson_theta_per_site,
+            fmt_opt_f64_csv_pg(d.tajimas_d, 6),
+            fmt_opt_f64_csv_pg(d.tajimas_d_pval_normal, 6),
+            fmt_opt_f64_csv_pg(d.tajimas_d_pval_beta, 6),
+            fmt_opt_f64_csv_pg(d.fu_li_d_star, 6),
+            fmt_opt_f64_csv_pg(d.fu_li_f_star, 6),
+            d.harpending_raggedness,
+            fmt_opt_f64_csv_pg(d.mean_hudson_fst, 6),
+            d.gc_content_pct,
+            csv_escape_popgen(&d.neutrality_classification),
+        ));
+    }
+    out
+}
+
+/// Export one or more `PopGenSummaryDigest` rows to pretty RFC 8259 JSON.
+pub fn export_popgen_digests_json(digests: &[PopGenSummaryDigest]) -> Result<String, String> {
+    serde_json::to_string_pretty(digests)
+        .map_err(|e| format!("Failed to serialize PopGen digest array JSON: {e}"))
+}
+
+/// Compute comparative `PopGenSummaryDigest` rows across all 4 built-in benchmark alignments.
+pub fn compute_builtin_popgen_digests(
+    gap_handling: GapHandling,
+) -> Result<Vec<PopGenSummaryDigest>, String> {
+    let mut out = Vec::new();
+    for (title, raw) in builtin_alignment_presets() {
+        let seqs = parse_sequence_alignment(raw)?;
+        let summary = analyze_alignment(title, &seqs, gap_handling)?;
+        out.push(summary.to_digest());
+    }
+    Ok(out)
+}
+
 /// Parse multi-FASTA, relaxed PHYLIP, or simple NEXUS DNA alignments automatically.
 /// Population tags can be supplied in headers as `>Sample1|IsleRoyale`, `>Sample1 [Pop=North]`,
 /// or inferred from prefix before `_`.
@@ -924,5 +1072,38 @@ mod tests {
             zero_sites.contains("at least 1"),
             "unexpected err: {zero_sites}"
         );
+    }
+
+    #[test]
+    fn popgen_summary_digest_json_and_csv_exports_reproducible_metrics() {
+        let digests =
+            compute_builtin_popgen_digests(GapHandling::PairwiseDeletion).expect("builtin digests");
+        assert_eq!(digests.len(), 4);
+        for d in &digests {
+            assert!(d.watterson_theta_per_site >= 0.0);
+            assert!(d.harpending_raggedness >= 0.0);
+            assert!(d.tajimas_d.is_some());
+            assert!(d.fu_li_d_star.is_some());
+            assert!(d.fu_li_f_star.is_some());
+        }
+
+        let json = export_popgen_digests_json(&digests).expect("json");
+        let parsed: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+        assert_eq!(parsed.as_array().map(|a| a.len()), Some(4));
+
+        let csv = export_popgen_digests_csv(&digests);
+        assert_eq!(csv.lines().count(), 5);
+        assert!(csv.contains("watterson_theta_per_site"));
+        assert!(csv.contains("harpending_raggedness"));
+
+        // Edge case: identical pair (n=2, S=0) yields None for Tajima/Fu&Li and r=1.0
+        let identical = parse_sequence_alignment(">A\nACGTACGT\n>B\nACGTACGT\n").expect("seqs");
+        let sum = analyze_alignment("Identical \"Pair\"", &identical, GapHandling::CompleteDeletion)
+            .expect("summary");
+        let single_json = sum.to_digest_json().expect("single json");
+        assert!(single_json.contains("\"harpending_raggedness\": 1.0"));
+        let single_csv = sum.to_digest_csv();
+        assert_eq!(single_csv.lines().count(), 2);
+        assert!(single_csv.contains("\"Identical \"\"Pair\"\"\""));
     }
 }

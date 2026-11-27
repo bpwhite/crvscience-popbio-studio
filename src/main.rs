@@ -26,7 +26,8 @@ use popbio_studio::gui::{render_headless_screenshot, PopBioApp};
 use popbio_studio::haplotype_network::{build_haplotype_network, NetworkAlgorithm};
 use popbio_studio::model::ModuleId;
 use popbio_studio::popgen_alignment::{
-    analyze_alignment, parse_sequence_alignment, GapHandling,
+    analyze_alignment, compute_builtin_popgen_digests, export_popgen_digests_csv,
+    export_popgen_digests_json, parse_sequence_alignment, GapHandling,
 };
 use popbio_studio::popgen_skyline::{run_skyline_and_expansion, run_sliding_window_scan};
 use popbio_studio::workset::WorksetState;
@@ -120,6 +121,29 @@ enum Commands {
         /// Optional Gephi GEXF 1.3 output path
         #[arg(long)]
         out_gexf: Option<PathBuf>,
+
+        /// Optional JSON output path for multi-metric PopGen summary digest
+        #[arg(long)]
+        out_digest_json: Option<PathBuf>,
+
+        /// Optional CSV output path for multi-metric PopGen summary digest
+        #[arg(long)]
+        out_digest_csv: Option<PathBuf>,
+    },
+
+    /// Export reproducible multi-metric PopGen summary digest (Watterson theta, Tajima's D, Fu & Li D*/F*, Harpending r) across an input alignment or all 4 built-in presets
+    PopgenDigest {
+        /// Optional FASTA, PHYLIP, or NEXUS alignment path (omit to digest all 4 built-in benchmark alignments)
+        #[arg(long)]
+        input: Option<PathBuf>,
+
+        /// Optional JSON output path for PopGen summary digest
+        #[arg(long)]
+        out_json: Option<PathBuf>,
+
+        /// Optional CSV output path for PopGen summary digest
+        #[arg(long)]
+        out_csv: Option<PathBuf>,
     },
 }
 
@@ -200,6 +224,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 out_windows_csv,
                 out_svg,
                 out_gexf,
+                out_digest_json,
+                out_digest_csv,
             } => {
                 let raw = fs::read_to_string(&input)?;
                 let seqs = parse_sequence_alignment(&raw)?;
@@ -270,6 +296,64 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Some(p) = out_gexf {
                     fs::write(&p, net.to_gexf())?;
                     println!("Wrote GEXF 1.3 network -> {}", p.display());
+                }
+                if let Some(p) = out_digest_json {
+                    fs::write(&p, summary.to_digest_json()?)?;
+                    println!("Wrote PopGen digest JSON -> {}", p.display());
+                }
+                if let Some(p) = out_digest_csv {
+                    fs::write(&p, summary.to_digest_csv())?;
+                    println!("Wrote PopGen digest CSV -> {}", p.display());
+                }
+                return Ok(());
+            }
+
+            Commands::PopgenDigest {
+                input,
+                out_json,
+                out_csv,
+            } => {
+                let digests = if let Some(path) = input {
+                    let raw = fs::read_to_string(&path)?;
+                    let seqs = parse_sequence_alignment(&raw)?;
+                    let name = path
+                        .file_name()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("Empirical Alignment");
+                    let summary = analyze_alignment(name, &seqs, GapHandling::PairwiseDeletion)?;
+                    vec![summary.to_digest()]
+                } else {
+                    compute_builtin_popgen_digests(GapHandling::PairwiseDeletion)?
+                };
+                println!(
+                    "{:<42} {:>4} {:>5} {:>10} {:>9} {:>9} {:>9} {:>8}",
+                    "DATASET", "N", "S", "THETA_W/bp", "TAJIMA_D", "FULI_D*", "FULI_F*", "HARP_R"
+                );
+                for d in &digests {
+                    let fmt_o = |v: Option<f64>| {
+                        v.map(|x| format!("{x:+.3}"))
+                            .unwrap_or_else(|| "--".to_string())
+                    };
+                    let short_name: String = d.dataset_name.chars().take(40).collect();
+                    println!(
+                        "{:<42} {:>4} {:>5} {:>10.6} {:>9} {:>9} {:>9} {:>8.4}",
+                        short_name,
+                        d.num_sequences,
+                        d.segregating_sites_s,
+                        d.watterson_theta_per_site,
+                        fmt_o(d.tajimas_d),
+                        fmt_o(d.fu_li_d_star),
+                        fmt_o(d.fu_li_f_star),
+                        d.harpending_raggedness
+                    );
+                }
+                if let Some(p) = out_json {
+                    fs::write(&p, export_popgen_digests_json(&digests)?)?;
+                    println!("Wrote PopGen summary digest JSON -> {}", p.display());
+                }
+                if let Some(p) = out_csv {
+                    fs::write(&p, export_popgen_digests_csv(&digests))?;
+                    println!("Wrote PopGen summary digest CSV -> {}", p.display());
                 }
                 return Ok(());
             }

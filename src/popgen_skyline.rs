@@ -254,10 +254,14 @@ fn compute_generalized_skyline(intervals: &[CoalescentInterval]) -> (Vec<f64>, f
         }
         if groups.len() > 1 && groups.last().map(|g| g.len()).unwrap_or(0) == 1 {
             // Merge trailing tiny group if its duration < eps
-            let last_idx = groups.last().unwrap()[0];
-            if intervals[last_idx].duration_subs < eps {
-                let popped = groups.pop().unwrap();
-                groups.last_mut().unwrap().extend(popped);
+            if let Some(last_idx) = groups.last().and_then(|g| g.first().copied()) {
+                if intervals[last_idx].duration_subs < eps {
+                    if let Some(popped) = groups.pop() {
+                        if let Some(prev_last) = groups.last_mut() {
+                            prev_last.extend(popped);
+                        }
+                    }
+                }
             }
         }
 

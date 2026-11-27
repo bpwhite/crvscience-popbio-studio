@@ -307,6 +307,10 @@ fn headless_f1_escape_priority_and_space_e2_haplotype_playback() {
         dragged_hap_node: None,
         show_help_modal: false,
         show_about_modal: false,
+        cmd_palette_open: false,
+        cmd_palette_just_opened: false,
+        cmd_palette_query: String::new(),
+        cmd_palette_cursor: 0,
         status_message: "Ready".to_string(),
     };
 
@@ -493,6 +497,10 @@ fn sci_tick_formatting_and_hotkeys_1_to_4_r_dot_n_work() {
         dragged_hap_node: None,
         show_help_modal: false,
         show_about_modal: false,
+        cmd_palette_open: false,
+        cmd_palette_just_opened: false,
+        cmd_palette_query: String::new(),
+        cmd_palette_cursor: 0,
         status_message: "Ready".to_string(),
     };
     app.workset.active_module = ModuleId::V1HareLynx;

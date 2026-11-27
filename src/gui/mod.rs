@@ -31,7 +31,7 @@ use self::front_menu::{render_front_menu, FrontMenuAction};
 use self::plots_panel::{render_phase_portrait_tab, render_time_series_tab};
 use self::popgen_view::{
     render_empirical_controls, render_haplotype_network_view, render_popgen_summary_view,
-    render_skyline_and_expansion_view, render_sliding_window_view,
+    render_skyline_and_expansion_view, render_sliding_window_view, write_export_file,
 };
 use self::spatial_canvas::render_spatial_canvas;
 
@@ -63,6 +63,10 @@ pub struct PopBioApp {
     pub dragged_hap_node: Option<usize>,
     pub show_help_modal: bool,
     pub show_about_modal: bool,
+    pub cmd_palette_open: bool,
+    pub cmd_palette_just_opened: bool,
+    pub cmd_palette_query: String,
+    pub cmd_palette_cursor: usize,
     pub status_message: String,
 }
 
@@ -116,6 +120,10 @@ impl PopBioApp {
             dragged_hap_node: None,
             show_help_modal: false,
             show_about_modal: false,
+            cmd_palette_open: false,
+            cmd_palette_just_opened: false,
+            cmd_palette_query: String::new(),
+            cmd_palette_cursor: 0,
             status_message: initial_status,
         }
     }
@@ -803,6 +811,7 @@ impl PopBioApp {
         // Global keyboard shortcuts
         let wants_kb = ctx.wants_keyboard_input();
         let (
+            ctrl_k_pressed,
             f1_pressed,
             esc_pressed,
             space_pressed,
@@ -817,6 +826,7 @@ impl PopBioApp {
             f9_pressed,
         ) = ctx.input(|i| {
             (
+                (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(Key::K),
                 i.key_pressed(Key::F1),
                 i.key_pressed(Key::Escape),
                 i.key_pressed(Key::Space),
@@ -831,11 +841,20 @@ impl PopBioApp {
                 i.key_pressed(Key::F9),
             )
         });
+        if ctrl_k_pressed {
+            self.cmd_palette_open = !self.cmd_palette_open;
+            if self.cmd_palette_open {
+                self.cmd_palette_just_opened = true;
+                self.cmd_palette_cursor = 0;
+            }
+        }
         if f1_pressed {
             self.show_help_modal = !self.show_help_modal;
         }
         if esc_pressed {
-            if self.show_about_modal {
+            if self.cmd_palette_open {
+                self.cmd_palette_open = false;
+            } else if self.show_about_modal {
                 self.show_about_modal = false;
             } else if self.show_help_modal {
                 self.show_help_modal = false;
@@ -845,7 +864,7 @@ impl PopBioApp {
                 self.screen = AppScreen::FrontMenu;
             }
         }
-        if self.screen == AppScreen::ModuleWorkspace && !wants_kb {
+        if self.screen == AppScreen::ModuleWorkspace && !wants_kb && !self.cmd_palette_open {
             let active = self.workset.active_module;
             if space_pressed {
                 if active == ModuleId::E2HaplotypeNetwork {
@@ -990,6 +1009,13 @@ impl PopBioApp {
                     }
                 });
 
+                if ui.button("Cmd Palette (Ctrl+K)").clicked() {
+                    self.cmd_palette_open = !self.cmd_palette_open;
+                    if self.cmd_palette_open {
+                        self.cmd_palette_just_opened = true;
+                        self.cmd_palette_cursor = 0;
+                    }
+                }
                 if ui.button("Help & Hotkeys").clicked() {
                     self.show_help_modal = true;
                 }
@@ -1072,6 +1098,10 @@ impl PopBioApp {
                     ui.label(RichText::new("Empirical Sequence Header Convention").strong());
                     ui.label("Use '>SampleID|DemeName' or '>SampleID [Pop=DemeName]' in FASTA headers to automatically color Haplotype Network pie slices and compute pairwise Hudson F_ST / D_XY.");
                 });
+        }
+
+        if self.cmd_palette_open {
+            self.render_command_palette_modal(ctx);
         }
 
         match self.screen {
@@ -1273,6 +1303,386 @@ impl PopBioApp {
                         }
                     }
                 });
+            }
+        }
+    }
+
+    fn render_command_palette_modal(&mut self, ctx: &egui::Context) {
+        #[derive(Clone, Copy)]
+        enum PaletteAction {
+            Module(ModuleId),
+            Tab(WorkspaceTab),
+            FrontMenu,
+            ExportModuleCsv,
+            ExportPopGenJson,
+            ExportPopGenCsv,
+            ExportSkylineCsv,
+            ExportSlidingCsv,
+            ExportNetworkSvg,
+            ExportNetworkGexf,
+            SaveWorkset,
+        }
+
+        fn fuzzy_score(query: &str, text: &str) -> Option<i32> {
+            let q = query.trim().to_ascii_lowercase();
+            if q.is_empty() {
+                return Some(100);
+            }
+            let t = text.to_ascii_lowercase();
+            if let Some(pos) = t.find(&q) {
+                return Some(250 - (pos as i32).min(120));
+            }
+            let mut score = 0i32;
+            let mut q_chars = q.chars().peekable();
+            let mut streak = 0i32;
+            for ch in t.chars() {
+                if let Some(&qc) = q_chars.peek() {
+                    if ch == qc {
+                        q_chars.next();
+                        streak += 1;
+                        score += 8 + streak * 4;
+                    } else {
+                        streak = 0;
+                    }
+                } else {
+                    break;
+                }
+            }
+            if q_chars.peek().is_none() {
+                Some(score)
+            } else {
+                None
+            }
+        }
+
+        let mut candidates: Vec<(i32, String, String, PaletteAction)> = Vec::new();
+        for m in ModuleId::ALL {
+            let meta = m.metadata();
+            let grp = m.group().short_badge();
+            let label = format!("[{}] {}", meta.code, meta.title);
+            let search_hay = format!(
+                "{} {} {} {} {} {} skyline network popgen coalescent",
+                meta.code,
+                m.slug(),
+                meta.title,
+                meta.organisms,
+                grp,
+                meta.summary
+            );
+            if let Some(sc) = fuzzy_score(&self.cmd_palette_query, &search_hay) {
+                candidates.push((
+                    sc + 30,
+                    label,
+                    format!("{grp} | {}", meta.organisms),
+                    PaletteAction::Module(m),
+                ));
+            }
+        }
+
+        let extras = [
+            (
+                "Tab 1: Spatial Movement & Distribution",
+                "Dynamical/Theoretical view",
+                "tab 1 spatial movement distribution arena",
+                PaletteAction::Tab(WorkspaceTab::VisualizationAndDistribution),
+            ),
+            (
+                "Tab 2: Population Graphs & Growth Phases",
+                "Dynamical/Theoretical view",
+                "tab 2 population graphs growth phases time series",
+                PaletteAction::Tab(WorkspaceTab::TimeSeriesAndGrowthPhases),
+            ),
+            (
+                "Tab 3: Phase Portrait / Bifurcation / SFS",
+                "Dynamical/Theoretical view",
+                "tab 3 phase portrait bifurcation sfs",
+                PaletteAction::Tab(WorkspaceTab::PhasePortraitAndDiagnostics),
+            ),
+            (
+                "Tab 4: Governing Equations & CSV Export",
+                "Dynamical/Theoretical view",
+                "tab 4 equations csv export",
+                PaletteAction::Tab(WorkspaceTab::EquationsAndExport),
+            ),
+            (
+                "Go to Front Menu (19-Module Hub)",
+                "Navigation",
+                "front menu hub home modules",
+                PaletteAction::FrontMenu,
+            ),
+            (
+                "Export Active Module Time-Series CSV...",
+                "Export Action",
+                "export csv time series trajectory",
+                PaletteAction::ExportModuleCsv,
+            ),
+            (
+                "Export PopGen Summary Digest (JSON)...",
+                "Export Action (Watterson theta, Tajima D, Fu & Li, Harpending r)",
+                "export popgen summary digest json watterson tajima fu li harpending",
+                PaletteAction::ExportPopGenJson,
+            ),
+            (
+                "Export PopGen Summary Digest (CSV)...",
+                "Export Action (Watterson theta, Tajima D, Fu & Li, Harpending r)",
+                "export popgen summary digest csv watterson tajima fu li harpending",
+                PaletteAction::ExportPopGenCsv,
+            ),
+            (
+                "Export Bayesian Skyline CSV...",
+                "Export Action (E3 Skyline)",
+                "export bayesian skyline csv e3",
+                PaletteAction::ExportSkylineCsv,
+            ),
+            (
+                "Export Sliding-Window Neutrality CSV...",
+                "Export Action (E4 Sliding Window)",
+                "export sliding window neutrality fst csv e4",
+                PaletteAction::ExportSlidingCsv,
+            ),
+            (
+                "Export Haplotype Network SVG...",
+                "Export Action (E2 Network)",
+                "export haplotype network svg e2 median joining",
+                PaletteAction::ExportNetworkSvg,
+            ),
+            (
+                "Export Haplotype Network GEXF 1.3...",
+                "Export Action (E2 Gephi)",
+                "export haplotype network gexf gephi e2",
+                PaletteAction::ExportNetworkGexf,
+            ),
+            (
+                "Save Portable .popworkset.json...",
+                "Workset Export",
+                "save export workset json",
+                PaletteAction::SaveWorkset,
+            ),
+        ];
+
+        for (title, sub, hay, act) in extras {
+            if let Some(sc) = fuzzy_score(&self.cmd_palette_query, hay) {
+                candidates.push((sc, title.to_string(), sub.to_string(), act));
+            }
+        }
+
+        candidates.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+        if !candidates.is_empty() && self.cmd_palette_cursor >= candidates.len() {
+            self.cmd_palette_cursor = 0;
+        }
+
+        let (down_pressed, up_pressed, enter_pressed) = ctx.input(|i| {
+            (
+                i.key_pressed(Key::ArrowDown),
+                i.key_pressed(Key::ArrowUp),
+                i.key_pressed(Key::Enter),
+            )
+        });
+        if !candidates.is_empty() {
+            if down_pressed {
+                self.cmd_palette_cursor = (self.cmd_palette_cursor + 1) % candidates.len();
+            }
+            if up_pressed {
+                self.cmd_palette_cursor =
+                    (self.cmd_palette_cursor + candidates.len() - 1) % candidates.len();
+            }
+        }
+
+        let mut chosen_action: Option<PaletteAction> = if enter_pressed {
+            candidates.get(self.cmd_palette_cursor).map(|c| c.3)
+        } else {
+            None
+        };
+
+        let mut open = self.cmd_palette_open;
+        egui::Window::new("Command Palette (Ctrl+K) — Jump to Module, View, or Export")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(true)
+            .default_width(580.0)
+            .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 56.0))
+            .show(ctx, |ui| {
+                let edit = ui.add(
+                    egui::TextEdit::singleline(&mut self.cmd_palette_query)
+                        .hint_text("Type module (v1, t5, skyline, network), view, or export...")
+                        .desired_width(f32::INFINITY),
+                );
+                if self.cmd_palette_just_opened {
+                    edit.request_focus();
+                    self.cmd_palette_just_opened = false;
+                }
+                if edit.changed() {
+                    self.cmd_palette_cursor = 0;
+                }
+                ui.add_space(4.0);
+                egui::ScrollArea::vertical()
+                    .id_salt("popbio_cmd_palette_scroll")
+                    .max_height(340.0)
+                    .show(ui, |ui| {
+                        for (idx, (_, label, sub, act)) in candidates.iter().enumerate() {
+                            let selected = idx == self.cmd_palette_cursor;
+                            let resp = ui.selectable_label(
+                                selected,
+                                format!("{label}   —   {sub}"),
+                            );
+                            if resp.clicked() {
+                                chosen_action = Some(*act);
+                            }
+                        }
+                        if candidates.is_empty() {
+                            ui.label("No matching modules, views, or actions.");
+                        }
+                    });
+            });
+        self.cmd_palette_open = open;
+
+        if let Some(act) = chosen_action {
+            self.cmd_palette_open = false;
+            self.cmd_palette_query.clear();
+            match act {
+                PaletteAction::Module(m) => {
+                    self.workset.active_module = m;
+                    self.screen = AppScreen::ModuleWorkspace;
+                    self.active_tab = WorkspaceTab::VisualizationAndDistribution;
+                    self.playing = !WorksetState::is_empirical_module(m);
+                    self.steps_per_frame = 2;
+                    let meta = m.metadata();
+                    self.status_message = format!("Jumped to [{}] {} via Ctrl+K.", meta.code, meta.title);
+                }
+                PaletteAction::Tab(t) => {
+                    if WorksetState::is_empirical_module(self.workset.active_module) {
+                        self.workset.active_module = ModuleId::V1HareLynx;
+                    }
+                    self.screen = AppScreen::ModuleWorkspace;
+                    self.active_tab = t;
+                }
+                PaletteAction::FrontMenu => {
+                    self.playing = false;
+                    self.workset.empirical.hap_sim_playing = false;
+                    self.screen = AppScreen::FrontMenu;
+                }
+                PaletteAction::ExportModuleCsv => {
+                    let mod_id = self.workset.active_module;
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("CSV Table", &["csv"])
+                        .set_file_name(format!("{}_timeseries.csv", mod_id.slug()))
+                        .save_file()
+                    {
+                        let csv = self.workset.export_module_csv(mod_id);
+                        self.status_message = match fs::write(&path, csv) {
+                            Ok(()) => format!("Exported CSV to {}", path.display()),
+                            Err(e) => format!("CSV write error: {e}"),
+                        };
+                    }
+                }
+                PaletteAction::ExportPopGenJson => {
+                    if let Some(sum) = &self.workset.empirical.summary {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("JSON Digest", &["json"])
+                            .set_file_name("popgen_summary_digest.json")
+                            .save_file()
+                        {
+                            self.status_message = match sum
+                                .to_digest_json()
+                                .and_then(|txt| write_export_file(&path, &txt, "PopGen Summary Digest JSON"))
+                            {
+                                Ok(msg) => msg,
+                                Err(e) => e,
+                            };
+                        }
+                    }
+                }
+                PaletteAction::ExportPopGenCsv => {
+                    if let Some(sum) = &self.workset.empirical.summary {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("CSV Table", &["csv"])
+                            .set_file_name("popgen_summary_digest.csv")
+                            .save_file()
+                        {
+                            self.status_message = match write_export_file(
+                                &path,
+                                &sum.to_digest_csv(),
+                                "PopGen Summary Digest CSV",
+                            ) {
+                                Ok(msg) => msg,
+                                Err(e) => e,
+                            };
+                        }
+                    }
+                }
+                PaletteAction::ExportSkylineCsv => {
+                    if let Some(sky) = &self.workset.empirical.skyline_report {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("CSV Table", &["csv"])
+                            .set_file_name("bayesian_skyline.csv")
+                            .save_file()
+                        {
+                            self.status_message = match write_export_file(
+                                &path,
+                                &sky.to_csv(),
+                                "Bayesian Skyline CSV",
+                            ) {
+                                Ok(msg) => msg,
+                                Err(e) => e,
+                            };
+                        }
+                    }
+                }
+                PaletteAction::ExportSlidingCsv => {
+                    if let Some(win) = &self.workset.empirical.sliding_report {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("CSV Table", &["csv"])
+                            .set_file_name("sliding_window_neutrality.csv")
+                            .save_file()
+                        {
+                            self.status_message = match write_export_file(
+                                &path,
+                                &win.to_csv(),
+                                "Sliding-Window CSV",
+                            ) {
+                                Ok(msg) => msg,
+                                Err(e) => e,
+                            };
+                        }
+                    }
+                }
+                PaletteAction::ExportNetworkSvg => {
+                    if let Some(net) = &self.workset.empirical.network {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("SVG Vector Image", &["svg"])
+                            .set_file_name("haplotype_network.svg")
+                            .save_file()
+                        {
+                            self.status_message = match write_export_file(
+                                &path,
+                                &net.to_svg(1024, 720),
+                                "SVG network",
+                            ) {
+                                Ok(msg) => msg,
+                                Err(e) => e,
+                            };
+                        }
+                    }
+                }
+                PaletteAction::ExportNetworkGexf => {
+                    if let Some(net) = &self.workset.empirical.network {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Gephi GEXF", &["gexf", "xml"])
+                            .set_file_name("haplotype_network.gexf")
+                            .save_file()
+                        {
+                            self.status_message = match write_export_file(
+                                &path,
+                                &net.to_gexf(),
+                                "GEXF graph",
+                            ) {
+                                Ok(msg) => msg,
+                                Err(e) => e,
+                            };
+                        }
+                    }
+                }
+                PaletteAction::SaveWorkset => self.export_workset_dialog(),
             }
         }
     }
