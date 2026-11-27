@@ -68,3 +68,4 @@ Observed `--all-targets` verification (`cargo test --all-targets`):
 - [Scientific & Coalescent Methods](docs/SCIENTIFIC_METHODS.md)
 - **Illustrated PDF Guide**: `docs/PopBio_Studio_v1_2_0_Guide.pdf`
 - **Example Alignments & Circuits**: `examples/*.fasta`
+- **Machine-readable citation metadata**: [CITATION.cff](CITATION.cff)

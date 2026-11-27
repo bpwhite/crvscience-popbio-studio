@@ -5,6 +5,9 @@ edition = "2021"
 authors = ["Bryan P. White <CRV Science>"]
 description = "Native Rust GUI educational population biology, Sewall Wright 3D adaptive landscapes, Leslie/Lefkovitch matrices, Bayesian Skyline, and haplotype network simulator"
 license = "GPL-3.0-or-later"
+homepage = "https://crvscience.com/apps"
+repository = "https://github.com/bpwhite/crvscience-popbio-studio"
+readme = "README.md"
 
 [dependencies]
 eframe = { version = "0.31", default-features = true, features = ["wgpu"] }
